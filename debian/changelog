@@ -1,0 +1,29 @@
+emuld (0.2.4) unstable; urgency=low
+
+  * modified post install script for fix install error
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Mon, 20 Feb 2012 15:16:52 +0900
+
+emuld (0.2.3) unstable; urgency=low
+
+  * modified for build only i386
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Sat, 18 Feb 2012 13:06:52 +0900
+
+emuld (0.2.2) unstable; urgency=low
+
+  * modified for distinction close fd by event injector
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Wed, 15 Feb 2012 15:35:52 +0900
+
+emuld (0.2.2) unstable; urgency=low
+
+  * modified for distinction close fd by event injector
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Wed, 15 Feb 2012 15:35:52 +0900
+
+emuld (0.2.1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Fri, 18 Nov 2011 09:29:52 +0900

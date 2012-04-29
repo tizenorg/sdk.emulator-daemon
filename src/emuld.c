@@ -322,21 +322,28 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	int len = 0;
 	int getcnt = 0;
 	char* r_tmpbuf = NULL;
-
+	
+	LOG("malloc size:%d\n", size);
 	r_tmpbuf = (char*)malloc(sizeof(char) * size);
 	*r_databuf = (char*)malloc(sizeof(char) * size);
 	memset(*r_databuf, '\0', sizeof(char) * size);
+	LOG("malloc success");
 
 	while(recvd_size < size)
 	{
 		memset(r_tmpbuf, '\0', sizeof(char) * size);
 		len = recv(event_fd, r_tmpbuf, size - recvd_size, 0);
+		if(len < 0)
+			len = 0;
+
 		memcpy((*r_databuf) + recvd_size, r_tmpbuf, len);
 		recvd_size += len;
 		getcnt++;
 		if(getcnt > MAX_GETCNT)
 			break;
 	}
+	
+	LOG("recvd_size:%d\n", recvd_size);
 	free(r_tmpbuf);
 	r_tmpbuf = NULL;
 
@@ -381,7 +388,7 @@ void client_recv(int event_fd)
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
-	LOG("start");
+	LOG("start event_fd:%d, vmfd:%d", event_fd, g_vm_sockfd);
 	/* there need to be more precise code here */ 
 	/* for example , packet check(protocol needed) , real recv size check , etc. */
 

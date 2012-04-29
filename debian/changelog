@@ -1,3 +1,9 @@
+emuld (0.2.5) unstable; urgency=low
+
+  * fixed unexpected stop when memcpy size -1
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Mon, 23 Apr 2012 12:16:52 +0900
+
 emuld (0.2.4) unstable; urgency=low
 
   * modified post install script for fix install error

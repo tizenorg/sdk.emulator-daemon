@@ -5,6 +5,7 @@ Release: 1
 Summary: emuld is used for communication emulator between and ide.
 License: Apache
 Source0: %{name}-%{version}.tar.gz
+Source1001: packaging/emuld.manifest 
 BuildArch: i386
 ExclusiveArch: %{ix86}
 BuildRequires: cmake
@@ -15,6 +16,7 @@ BuildRequires: cmake
 %setup -q
 
 %build
+cp %{SOURCE1001} .
 export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"    
     
 LDFLAGS="$LDFLAGS" cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
@@ -39,6 +41,7 @@ chmod 777 /usr/bin/emuld
 %postun
 
 %files
+%manifest emuld.manifest
 %defattr(-,root,root,-)
 %{_prefix}/bin/emuld
 

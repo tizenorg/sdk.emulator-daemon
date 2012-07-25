@@ -6,9 +6,9 @@ Summary: emuld is used for communication emulator between and ide.
 License: Apache
 Source0: %{name}-%{version}.tar.gz
 Source1001: packaging/emuld.manifest 
-BuildArch: i386
 ExclusiveArch: %{ix86}
 BuildRequires: cmake
+ExclusiveArch: ia64 x86_64 %{ix86}
 
 %description
 

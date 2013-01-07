@@ -294,6 +294,9 @@ int umount_sdcard(void)
 	char file_name[128];
 	memset(file_name, '\0', sizeof(file_name));
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	if(packet == NULL){
+	    return;
+	}
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
 	LOG("start sdcard umount");
@@ -340,6 +343,10 @@ int umount_sdcard(void)
 		}
 	}
 
+	if(packet){
+	    free(packet);
+	    packet = NULL;
+	}
 	return ret;
 } 
 
@@ -483,7 +490,15 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	char* r_tmpbuf = NULL;
 
 	r_tmpbuf = (char*)malloc(sizeof(char) * size + 1);
+	if(r_tmpbuf == NULL){
+	    return;
+	}
+
 	*r_databuf = (char*)malloc(sizeof(char) * size + 1);
+	if(*r_databuf == NULL){
+	    free(r_tmpbuf);
+	    return;
+	}
 	memset(*r_databuf, '\0', sizeof(char) * size + 1);
 
 	while(recvd_size < size)
@@ -559,6 +574,8 @@ void client_recv(int event_fd)
 	/* there need to be more precise code here */ 
 	/* for example , packet check(protocol needed) , real recv size check , etc. */
 	if (event_fd == -1) {
+		free(packet);
+		packet = NULL;
 		return;
 	}
 
@@ -589,8 +606,11 @@ void client_recv(int event_fd)
 		
 		if(g_sdbd_sockfd != -1)
 			len = send(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
-		else
+		else {
+			free(packet);
+			packet = NULL;
 			return;
+		}
 
 		LOG("send_len: %d, next packet length: %d", len, packet->length);
 
@@ -634,6 +654,8 @@ void client_recv(int event_fd)
 		{
 			free(r_databuf);
 			r_databuf = NULL;
+			free(packet);
+			packet = NULL;
 			LOG("close event_fd: %d", event_fd);
 			userpool_delete(event_fd);
 			close(event_fd); /* epoll set fd also deleted automatically by this call as a spec */
@@ -659,8 +681,11 @@ void client_recv(int event_fd)
 		if(strncmp(tmpbuf, "telephony", 9) == 0)
 		{
 			g_sdbd_sockfd = event_fd;
-			if(g_vm_connect_status != 1)	// The connection is lost with vmodem
+			if(g_vm_connect_status != 1) {	// The connection is lost with vmodem
+				free(packet);
+				packet = NULL;
 				return;
+			}
 
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);			
 			len = send(g_vm_sockfd, r_databuf, HEADER_SIZE, 0);
@@ -770,6 +795,8 @@ void client_recv(int event_fd)
                 	{
                         	free(r_databuf);
 				r_databuf = NULL;
+				free(packet);
+				packet = NULL;
                         	return;
                 	}
 
@@ -779,6 +806,11 @@ void client_recv(int event_fd)
 			free(r_databuf);
 			r_databuf = NULL;
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+			if(r_databuf == NULL){
+			    free(packet);
+			    packet = NULL;
+			    return;
+			}
 			LOG("nfc data recv buffer: %s", r_databuf);
 
 			if (packet->group == STATUS) {
@@ -797,6 +829,8 @@ void client_recv(int event_fd)
 				if(!fd)
 				{
 					LOG("nfc file open fail!");
+					free(r_databuf);
+					r_databuf = NULL;
 					free(packet);
 					packet = NULL;
 					return;
@@ -876,6 +910,9 @@ void client_recv(int event_fd)
 				mount_status = is_mounted();
 
 				LXT_MESSAGE* mntData = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+				if(mntData == NULL){
+				    break;
+				}
 				memset(mntData, 0, sizeof(LXT_MESSAGE));
 
 				mntData->length = strlen(SDpath);	// length
@@ -902,6 +939,7 @@ void client_recv(int event_fd)
 				default:
 					break;
 				}
+				free(mntData);
 				break;
 			default:
 				LOG("unknown data %s", ret);

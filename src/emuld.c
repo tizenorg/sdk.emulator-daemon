@@ -398,7 +398,10 @@ void userpool_add(int cli_fd, unsigned short cli_port)
 	{
 		if(g_client[i].cli_sockfd == -1) break;
 	}
-	if( i >= MAX_CLIENT ) close(cli_fd);
+	if( i >= MAX_CLIENT ){ 
+	    close(cli_fd);
+	    return;
+	}
 
 	LOG("g_client[%d].cli_port: %d", i, cli_port);
 

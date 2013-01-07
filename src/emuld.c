@@ -546,6 +546,10 @@ void client_recv(int event_fd)
 	char tmpbuf[48];
 	int len, recvd_size, parse_len = 0;
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	if (packet == NULL)
+	{
+	    return;
+	}
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
 	LOG("start (event fd: %d)", event_fd);

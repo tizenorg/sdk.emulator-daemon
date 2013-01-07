@@ -1182,7 +1182,10 @@ void send_guest_server(char* databuf)
 	}
 
 	if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
-		  LOG("socket error!");
+	{
+		LOG("socket error!");
+		return;
+	}
 	    
 	memset((char *) &si_other, 0, sizeof(si_other));
 	si_other.sin_family = AF_INET;

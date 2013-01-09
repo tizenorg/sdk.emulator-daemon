@@ -295,7 +295,7 @@ int umount_sdcard(void)
 	memset(file_name, '\0', sizeof(file_name));
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 	if(packet == NULL){
-	    return;
+	    return ret;
 	}
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
@@ -491,13 +491,13 @@ int recv_data(int event_fd, char** r_databuf, int size)
 
 	r_tmpbuf = (char*)malloc(sizeof(char) * size + 1);
 	if(r_tmpbuf == NULL){
-	    return;
+	    return -1;
 	}
 
 	*r_databuf = (char*)malloc(sizeof(char) * size + 1);
 	if(*r_databuf == NULL){
 	    free(r_tmpbuf);
-	    return;
+	    return -1;
 	}
 	memset(*r_databuf, '\0', sizeof(char) * size + 1);
 

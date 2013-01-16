@@ -875,6 +875,23 @@ void client_recv(int event_fd)
 			free(r_databuf);
 			r_databuf = NULL;
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+			if(recvd_size <= 0){
+				LOG("client_recv: recv_data err");
+				if(r_databuf) {
+				    	free(r_databuf);
+					r_databuf = NULL;
+				}
+				if(packet) {
+					free(packet);
+					packet = NULL;
+				}
+				LOG("close event_fd: %d", event_fd);
+				userpool_delete(event_fd);
+				close(event_fd); /* epoll set fd also deleted automatically by this call as a spec */
+				if(event_fd == g_sdbd_sockfd)
+					g_sdbd_sockfd = -1;
+				return;
+			}
 
 			LOG("Something may be added in the data end, but it does not matter.");
 			LOG("sdcard data recv buffer: %s", r_databuf);

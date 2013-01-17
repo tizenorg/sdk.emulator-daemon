@@ -1,4 +1,4 @@
-/*
+/* -*- Mode: C; c-basic-offset: 8; indent-tabs-mode: t -*-
  * emulator-daemon
  *
  * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
@@ -449,38 +449,70 @@ int parse_val(char *buff, unsigned char data, char *parsbuf)
 	return 0;
 }
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 void udp_init(void)
 {
+	char emul_ip[HOST_NAME_MAX+1];
+	struct addrinfo *res;
+	struct addrinfo hints;
+
 	LOG("start");
-	char* emul_ip = getenv("HOSTNAME");
-	if(emul_ip == NULL)
+
+	memset(emul_ip, 0, sizeof(emul_ip));
+	if (gethostname(emul_ip, sizeof(emul_ip)) < 0)
 	{
-		LOG("emul_ip is null");
+		LOG("gethostname(): %s", strerror(errno));
 		assert(0);
 	}
 
-	if ((uSensordFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family=AF_INET;
+	hints.ai_socktype=SOCK_DGRAM;
+	hints.ai_protocol=IPPROTO_UDP;
+
+	if (getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res) != 0)
+	{
+		LOG("getaddrinfo(sensord): %s", strerror(errno));
+		assert(0);
+	}
+
+	if ((uSensordFd=socket(res->ai_family, res->ai_socktype, res->ai_protocol))==-1){
 		fprintf(stderr, "socket error!\n");
 	}
 
+	if (res->ai_addrlen > sizeof(si_sensord_other))
+	{
+		LOG("sockaddr structure too big");
+		assert(0);
+	}
 	memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
-	si_sensord_other.sin_family = AF_INET;
-	si_sensord_other.sin_port = htons(sensord_port);
-	if (inet_aton(emul_ip, &si_sensord_other.sin_addr)==0) {
-		fprintf(stderr, "inet_aton() failed\n");
+	memcpy((char *) &si_sensord_other, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
+
+	if (getaddrinfo(emul_ip, STR(GPSD_PORT), &hints, &res) != 0)
+	{
+		LOG("getaddrinfo(gpsd): %s", strerror(errno));
+		assert(0);
 	}
 
-	if ((uGpsdFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
+	if ((uGpsdFd=socket(res->ai_family, res->ai_socktype, res->ai_protocol))==-1){
 		fprintf(stderr, "socket error!\n");
 	}
 
-	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
-	si_gpsd_other.sin_family = AF_INET;
-	si_gpsd_other.sin_port = htons(gpsd_port);
-	if (inet_aton(emul_ip, &si_gpsd_other.sin_addr)==0) {
-		fprintf(stderr, "inet_aton() failed\n");
+	if (res->ai_addrlen > sizeof(si_gpsd_other))
+	{
+		LOG("sockaddr structure too big");
+		assert(0);
 	}
+	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
+	memcpy((char *) &si_gpsd_other, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
 }
+
+#undef STR_HELPER
+#undef STR
 
 int recv_data(int event_fd, char** r_databuf, int size)
 {

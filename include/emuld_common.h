@@ -30,6 +30,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <netdb.h>
+#include <unistd.h>
 
 // define group id
 // return value to the injector

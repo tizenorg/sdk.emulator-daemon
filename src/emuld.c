@@ -200,7 +200,7 @@ int is_mounted()
 
 	for(i = 0; i < 10; i++)
 	{
-		sprintf(file_name, "/dev/mmcblk%d", i);
+		sprintf(file_name, "/dev/emul_mmcblk%d", i);
 		ret = access( file_name, F_OK );
 		if( ret == 0 )
 		{
@@ -234,7 +234,7 @@ void* mount_sdcard(void* data)
 	{	
 		for(i = 0; i < 10; i++)
 		{
-			sprintf(file_name, "/dev/mmcblk%d", i);
+			sprintf(file_name, "/dev/emul_mmcblk%d", i);
 			ret = access( file_name, F_OK );
 			if( ret == 0 )
 			{
@@ -305,7 +305,7 @@ int umount_sdcard(void)
 
 	for(i = 0; i < 10; i++)
 	{
-		sprintf(file_name, "/dev/mmcblk%d", i);
+		sprintf(file_name, "/dev/emul_mmcblk%d", i);
 		ret = access( file_name, F_OK);
 		if ( ret == 0 )
 		{

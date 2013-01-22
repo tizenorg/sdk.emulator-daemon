@@ -457,6 +457,7 @@ void udp_init(void)
 	char emul_ip[HOST_NAME_MAX+1];
 	struct addrinfo *res;
 	struct addrinfo hints;
+	int rc;
 
 	LOG("start");
 
@@ -472,9 +473,12 @@ void udp_init(void)
 	hints.ai_socktype=SOCK_DGRAM;
 	hints.ai_protocol=IPPROTO_UDP;
 
-	if (getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res) != 0)
+	if ((rc=getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res)) != 0)
 	{
-		LOG("getaddrinfo(sensord): %s", strerror(errno));
+		if (rc == EAI_SYSTEM)
+			LOG("getaddrinfo(sensord): %s", strerror(errno));
+		else
+			LOG("getaddrinfo(sensord): %s", gai_strerror(rc));
 		assert(0);
 	}
 
@@ -485,15 +489,19 @@ void udp_init(void)
 	if (res->ai_addrlen > sizeof(si_sensord_other))
 	{
 		LOG("sockaddr structure too big");
+		/* XXX: if you `return' remember to clean up */
 		assert(0);
 	}
 	memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
 	memcpy((char *) &si_sensord_other, res->ai_addr, res->ai_addrlen);
 	freeaddrinfo(res);
 
-	if (getaddrinfo(emul_ip, STR(GPSD_PORT), &hints, &res) != 0)
+	if ((rc=getaddrinfo(emul_ip, STR(GPSD_PORT), &hints, &res)) != 0)
 	{
-		LOG("getaddrinfo(gpsd): %s", strerror(errno));
+		if (rc == EAI_SYSTEM)
+			LOG("getaddrinfo(gpsd): %s", strerror(errno));
+		else
+			LOG("getaddrinfo(gpsd): %s", gai_strerror(rc));
 		assert(0);
 	}
 

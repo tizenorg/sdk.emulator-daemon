@@ -3,9 +3,9 @@
  *
  * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
  *
- * Contact: 
+ * Contact:
+ * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
- * DongKyun Yun <dk77.yun@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,11 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <assert.h>
+#include <errno.h>
+#include <sys/mount.h>
 
 /* definition */
 #define MAX_CLIENT		10000
@@ -48,7 +53,7 @@
 #define VMODEM_PORT		3578
 #define GPSD_PORT		3579
 #define SENSORD_PORT		3580
-#define EMUL_IP			"10.0.2.16"
+#define SRV_IP 			"10.0.2.2"
 #define ID_SIZE			10
 #define HEADER_SIZE		4
 #define EMD_DEBUG
@@ -68,9 +73,13 @@ int recv_data(int event_fd, char** r_databuf, int size);
 void client_recv(int event_fd);
 void server_process(void);
 void end_server(int sig);
+int is_mounted(void);
 
 static int log_print = -1;
 FILE* log_fd;
+
+// location
+void setting_location(char* databuf);
 
 #define LOG(fmt, arg...) \
 	do { \

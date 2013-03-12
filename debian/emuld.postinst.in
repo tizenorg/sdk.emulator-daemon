@@ -1,3 +1,2 @@
 #!/bin/sh
 chmod 777 /usr/bin/emuld
-	

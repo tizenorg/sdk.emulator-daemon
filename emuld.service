@@ -1,0 +1,7 @@
+[Unit]
+Description=emuld
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/emuld

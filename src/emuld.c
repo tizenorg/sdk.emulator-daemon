@@ -1,4 +1,4 @@
-/*
+/* -*- Mode: C; c-basic-offset: 8; indent-tabs-mode: t -*-
  * emulator-daemon
  *
  * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
@@ -271,7 +271,6 @@ void* mount_sdcard(void* data)
 				
 				if(ret == 0)
 				{
-					//system("if [ ! -d /opt/storage/sdcard/Camera ]; then mkdir -p /opt/storage/sdcard/Camera; fi");
 					system("chmod -R 777 /opt/storage/sdcard");
 					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 				}
@@ -319,11 +318,10 @@ int umount_sdcard(void)
 			{
 				packet->length = strlen(SDpath);		// length
 				packet->group = 11;				// sdcard
-
-				if(ret != 0 && errno == 16)			// EBUSY
-					packet->action = 4;			// failed
+				if(ret == 0)
+					packet->action = 0;				// unmounted
 				else
-					packet->action = 0;			// do detach
+					packet->action = 4;				// failed
 
 				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
@@ -334,10 +332,6 @@ int umount_sdcard(void)
 					memset(SDpath, '\0', sizeof(SDpath));
 					sprintf(SDpath, "umounted");
 					system("vconftool set -t int memory/sysman/mmc 0 -i -f");
-				} else if (packet->action == 0){ // not busy, then force detach
-					memset(SDpath, '\0', sizeof(SDpath));
-					sprintf(SDpath, "umounted");
-					ret = 0;
 				}				
 			}
 
@@ -455,38 +449,78 @@ int parse_val(char *buff, unsigned char data, char *parsbuf)
 	return 0;
 }
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 void udp_init(void)
 {
+	char emul_ip[HOST_NAME_MAX+1];
+	struct addrinfo *res;
+	struct addrinfo hints;
+	int rc;
+
 	LOG("start");
-	char* emul_ip = getenv("HOSTNAME");
-	if(emul_ip == NULL)
+
+	memset(emul_ip, 0, sizeof(emul_ip));
+	if (gethostname(emul_ip, sizeof(emul_ip)) < 0)
 	{
-		LOG("emul_ip is null");
+		LOG("gethostname(): %s", strerror(errno));
 		assert(0);
 	}
 
-	if ((uSensordFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family=AF_INET;
+	hints.ai_socktype=SOCK_DGRAM;
+	hints.ai_protocol=IPPROTO_UDP;
+
+	if ((rc=getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res)) != 0)
+	{
+		if (rc == EAI_SYSTEM)
+			LOG("getaddrinfo(sensord): %s", strerror(errno));
+		else
+			LOG("getaddrinfo(sensord): %s", gai_strerror(rc));
+		assert(0);
+	}
+
+	if ((uSensordFd=socket(res->ai_family, res->ai_socktype, res->ai_protocol))==-1){
 		fprintf(stderr, "socket error!\n");
 	}
 
+	if (res->ai_addrlen > sizeof(si_sensord_other))
+	{
+		LOG("sockaddr structure too big");
+		/* XXX: if you `return' remember to clean up */
+		assert(0);
+	}
 	memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
-	si_sensord_other.sin_family = AF_INET;
-	si_sensord_other.sin_port = htons(sensord_port);
-	if (inet_aton(emul_ip, &si_sensord_other.sin_addr)==0) {
-		fprintf(stderr, "inet_aton() failed\n");
+	memcpy((char *) &si_sensord_other, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
+
+	if ((rc=getaddrinfo(emul_ip, STR(GPSD_PORT), &hints, &res)) != 0)
+	{
+		if (rc == EAI_SYSTEM)
+			LOG("getaddrinfo(gpsd): %s", strerror(errno));
+		else
+			LOG("getaddrinfo(gpsd): %s", gai_strerror(rc));
+		assert(0);
 	}
 
-	if ((uGpsdFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
+	if ((uGpsdFd=socket(res->ai_family, res->ai_socktype, res->ai_protocol))==-1){
 		fprintf(stderr, "socket error!\n");
 	}
 
-	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
-	si_gpsd_other.sin_family = AF_INET;
-	si_gpsd_other.sin_port = htons(gpsd_port);
-	if (inet_aton(emul_ip, &si_gpsd_other.sin_addr)==0) {
-		fprintf(stderr, "inet_aton() failed\n");
+	if (res->ai_addrlen > sizeof(si_gpsd_other))
+	{
+		LOG("sockaddr structure too big");
+		assert(0);
 	}
+	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
+	memcpy((char *) &si_gpsd_other, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
 }
+
+#undef STR_HELPER
+#undef STR
 
 int recv_data(int event_fd, char** r_databuf, int size)
 {

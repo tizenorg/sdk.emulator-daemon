@@ -252,7 +252,7 @@ void* mount_sdcard(void* data)
 		if( i != 10 )
 		{
 			LOG( "%s is exist", file_name);
-			ret = mount(file_name, "/mnt/mmc", "ext3", 0, "");
+			ret = mount(file_name, "/mnt/mmc", "ext4", 0, "");
 			LOG("mount ret = %d, errno = %d", ret, errno);
 			
 			LOG("sdcard fd: %d", g_sdcard_sockfd);

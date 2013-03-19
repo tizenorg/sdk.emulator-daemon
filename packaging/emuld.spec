@@ -1,6 +1,6 @@
 #git:/slp/pkgs/e/emulator-daemon
 Name: emuld
-Version: 0.2.27
+Version: 0.2.28
 Release: 1
 Summary: emuld is used for communication emulator between and ide.
 License: Apache
@@ -23,6 +23,12 @@ make
 
 %install
 rm -rf %{buildroot}
+if [ ! -d %{buildroot}/usr/lib/systemd/system/multi-user.target.wants ]; then
+    mkdir -p %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
+fi
+cp emuld.service %{buildroot}/usr/lib/systemd/system/.
+ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/emuld.service
+
 %make_install
 
 %clean
@@ -43,5 +49,7 @@ touch /opt/nfc/sdkMsg
 %files
 %defattr(-,root,root,-)
 %{_prefix}/bin/emuld
+/usr/lib/systemd/system/emuld.service
+/usr/lib/systemd/system/multi-user.target.wants/emuld.service
 
 %changelog

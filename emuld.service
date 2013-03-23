@@ -1,5 +1,5 @@
 [Unit]
-Description=emuld
+Description=Common control daemon for emulator
 After=multi-user.target
 
 [Service]

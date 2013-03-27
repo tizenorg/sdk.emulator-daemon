@@ -571,20 +571,6 @@ int powerdown_by_force()
 {
 	struct timeval now;
 	int poweroff_duration = POWEROFF_DURATION;
-	char *buf;
-
-	/* Getting poweroff duration */
-	buf = getenv("PWROFF_DUR");
-	if(buf == NULL)
-	{
-		LOG("PWROFF_DUR is null");
-		assert(0);
-	}
-	
-	if (strlen(buf) < 1024)
-		poweroff_duration = atoi(buf);
-	if (poweroff_duration < 0 || poweroff_duration > 60) 
-		poweroff_duration = POWEROFF_DURATION;
 
 	gettimeofday(&now, NULL);
 	/* Waiting until power off duration and displaying animation */

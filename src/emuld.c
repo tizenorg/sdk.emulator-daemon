@@ -36,6 +36,8 @@ License: GNU General Public License
 #include "emuld_common.h"
 #include "emuld.h"
 
+
+#define MAX_CONNECT_TRY_COUNT	(60 * 3)
 /* global definition */
 unsigned short sdbd_port = SDBD_PORT;
 unsigned short vmodem_port = VMODEM_PORT;
@@ -64,6 +66,8 @@ struct {
 } g_client[MAX_CLIENT];
 
 int g_epoll_fd;                		/* epoll fd */
+
+static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
 
 struct epoll_event g_events[MAX_EVENTS]; 
 
@@ -95,6 +99,31 @@ void init_data0(void)
 	for(i = 0 ; i < MAX_CLIENT ; i++) {
 		g_client[i].cli_sockfd = -1;
 	}
+}
+
+bool is_vm_connected(void)
+{
+	bool ret = false;
+
+	pthread_mutex_lock(&mutex_vmconnect);
+
+	if (g_vm_connect_status == 1)
+	{
+		ret = true;
+	}
+
+	pthread_mutex_unlock(&mutex_vmconnect);
+
+	return ret;
+}
+
+void set_vm_connect_status(const int v)
+{
+	pthread_mutex_lock(&mutex_vmconnect);
+
+	g_vm_connect_status = v;
+
+	pthread_mutex_unlock(&mutex_vmconnect);
 }
 
 /*------------------------------------------------------------- 
@@ -151,13 +180,16 @@ void* init_vm_connect(void* data)
 {
 	struct sockaddr_in vm_addr;
 	int ret = -1;	
-	g_vm_connect_status = 0;
+	int connect_try_count = 0;
+	bool is_connected = false;
 
-	LOG("start");
+	set_vm_connect_status(0);
+
+	LOG("init_vm_connect start");
 
 	pthread_detach(pthread_self());
 	/* Open TCP Socket */
-	if( (g_vm_sockfd = socket(AF_INET,SOCK_STREAM,0)) < 0 ) 
+	if( (g_vm_sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
 	{
 		fprintf(stderr, "Server Start Fails. : Can't open stream socket \n");
 		exit(0);
@@ -170,24 +202,36 @@ void* init_vm_connect(void* data)
 	vm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	vm_addr.sin_port = htons(vmodem_port);
 
-	while(ret < 0)
+	while(ret < 0  /*&& (connect_try_count < MAX_CONNECT_TRY_COUNT)*/)
 	{
 		ret = connect(g_vm_sockfd, (struct sockaddr *)&vm_addr, sizeof(vm_addr));
 
 		LOG("vm_sockfd: %d, connect ret: %d", g_vm_sockfd, ret);
 
 		if(ret < 0) {
-			LOG("connection failed to vmodem!");		
+			LOG("connection failed to vmodem! try count = %d\n", connect_try_count);
 			sleep(1);
 		}
+		else
+		{
+			is_connected = true;
+		}
+		connect_try_count ++;
 	}
+	/*
+	if (!is_connected)
+	{
+		LOG("try to connect to vmoden was failed!");
+		exit(0);
+	}*/
 	
 	userpool_add(g_vm_sockfd, vm_addr.sin_port);
 
 	/* add client sockfd at event pool */
 	epoll_cli_add(g_vm_sockfd);
 	
-	g_vm_connect_status = 1;
+	set_vm_connect_status(1);
+
 	pthread_exit((void *) 0); 
 }
 
@@ -271,11 +315,6 @@ void* mount_sdcard(void* data)
 				
 				if(ret == 0)
 				{
-					/* W/A for sdcard file permission start */
-					system("mkdir -p /opt/storage/sdcard/Camera /opt/storage/sdcard/Downloads /opt/storage/sdcard/Images /opt/storage/sdcard/Sounds /opt/storage/sdcard/Videos");
-					system("chown 5000:5000 -R /opt/storage/sdcard");
-					/* W/A for sdcard file permission end */
-					
 					system("chmod -R 777 /opt/storage/sdcard");
 					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 				}
@@ -623,6 +662,9 @@ void client_recv(int event_fd)
 			packet = NULL;
 			userpool_delete(event_fd);
 			close(event_fd); /* epoll set fd also deleted automatically by this call as a spec */
+
+			set_vm_connect_status(0);
+
 			if(pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
 				LOG("pthread create fail!");
 			return;
@@ -712,7 +754,7 @@ void client_recv(int event_fd)
 		if(strncmp(tmpbuf, "telephony", 9) == 0)
 		{
 			g_sdbd_sockfd = event_fd;
-			if(g_vm_connect_status != 1) {	// The connection is lost with vmodem
+			if(!is_vm_connected()) {	// The connection is lost with vmodem
 				free(packet);
 				packet = NULL;
 				return;
@@ -743,7 +785,7 @@ void client_recv(int event_fd)
 				}
 			}				
 
-			if(g_vm_connect_status != 1)	// The connection is lost with vmodem
+			if(!is_vm_connected())	// The connection is lost with vmodem
 				return;
 
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
@@ -1013,7 +1055,7 @@ void client_recv(int event_fd)
 	}
 }
 
-void server_process(void)
+bool server_process(void)
 {
 	struct sockaddr_in cli_addr;
 	int i,nfds;
@@ -1024,14 +1066,14 @@ void server_process(void)
 
 	if(nfds == 0){
 		/* no event , no work */
-		return;
+		return false;
 	}
 
 
 	if(nfds < 0) {
 		fprintf(stderr, "epoll wait error\n");
 		/* return but this is epoll wait error */
-		return;
+		return true;
 	} 
 
 	for( i = 0 ; i < nfds ; i++ )
@@ -1065,6 +1107,8 @@ void server_process(void)
 
 		client_recv(g_events[i].data.fd);    
 	} /* end of for 0-nfds */
+
+	return false;
 }
 /*------------------------------- end of function server_process */
 
@@ -1300,6 +1344,8 @@ void send_guest_server(char* databuf)
 
 int main( int argc , char *argv[])
 {
+	int state;
+
 	if(log_print == 1)
 	{
 		// for emuld log file
@@ -1331,15 +1377,23 @@ int main( int argc , char *argv[])
 	init_server0(g_svr_port);
 
 	epoll_init();    /* epoll initialize  */
+
+	set_vm_connect_status(0);
+
 	if(pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
 		LOG("pthread create fail!");
 
 	udp_init();
 
+	bool is_exit = false;
 	/* main loop */
-	while(1)
+	while(!is_exit)
 	{
-		server_process();  /* accept process. */
+		is_exit = server_process();  /* accept process. */
 	} /* infinite loop while end. */
+
+	state = pthread_mutex_destroy(&mutex_vmconnect);
+
+	fprintf(stderr, "emuld exit\n");
 }
 

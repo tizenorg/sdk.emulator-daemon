@@ -35,6 +35,7 @@ License: GNU General Public License
 ------------------------------------------------------------------*/
 #include "emuld_common.h"
 #include "emuld.h"
+#include <error.h>
 
 
 #define MAX_CONNECT_TRY_COUNT	(60 * 3)
@@ -1062,7 +1063,7 @@ bool server_process(void)
 	int cli_sockfd;
 	int cli_len = sizeof(cli_addr);
 
-	nfds = epoll_wait(g_epoll_fd,g_events,MAX_EVENTS,100); /* timeout 100ms */
+	nfds = epoll_wait(g_epoll_fd, g_events,MAX_EVENTS, 100); /* timeout 100ms */
 
 	if(nfds == 0){
 		/* no event , no work */
@@ -1073,6 +1074,8 @@ bool server_process(void)
 	if(nfds < 0) {
 		fprintf(stderr, "epoll wait error\n");
 		/* return but this is epoll wait error */
+		if (errno == EINTR)
+			return false;
 		return true;
 	} 
 

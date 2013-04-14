@@ -316,6 +316,11 @@ void* mount_sdcard(void* data)
 				
 				if(ret == 0)
 				{
+					 /* W/A for sdcard file permission start */
+					system("mkdir -p /opt/storage/sdcard/Camera /opt/storage/sdcard/Downloads /opt/storage/sdcard/Images /opt/storage/sdcard/Sounds /opt/storage/sdcard/Videos");
+					system("chown 5000:5000 -R /opt/storage/sdcard");
+					/* W/A for sdcard file permission end */
+
 					system("chmod -R 777 /opt/storage/sdcard");
 					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 				}

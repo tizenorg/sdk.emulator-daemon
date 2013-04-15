@@ -181,7 +181,7 @@ void* init_vm_connect(void* data)
 {
 	struct sockaddr_in vm_addr;
 	int ret = -1;	
-	int connect_try_count = 0;
+	//int connect_try_count = 0;
 	bool is_connected = false;
 
 	set_vm_connect_status(0);
@@ -210,14 +210,14 @@ void* init_vm_connect(void* data)
 		LOG("vm_sockfd: %d, connect ret: %d", g_vm_sockfd, ret);
 
 		if(ret < 0) {
-			LOG("connection failed to vmodem! try count = %d\n", connect_try_count);
+			LOG("connection failed to vmodem! try \n");
 			sleep(1);
 		}
 		else
 		{
 			is_connected = true;
 		}
-		connect_try_count ++;
+		//connect_try_count ++;
 	}
 	/*
 	if (!is_connected)
@@ -685,12 +685,7 @@ void client_recv(int event_fd)
 		
 		if(g_sdbd_sockfd != -1)
 			len = send(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
-		else {
-			free(packet);
-			packet = NULL;
-			return;
-		}
-
+		
 		LOG("send_len: %d, next packet length: %d", len, packet->length);
 
 		if(packet->length <= 0)
@@ -719,7 +714,9 @@ void client_recv(int event_fd)
 			packet = NULL;
 			return;
 		}
-		len = send(g_sdbd_sockfd, r_databuf, packet->length, 0);
+
+		if(g_sdbd_sockfd != -1)
+			len = send(g_sdbd_sockfd, r_databuf, packet->length, 0);
 
 		LOG("send_len: %d", len);
 	}
@@ -1077,7 +1074,7 @@ bool server_process(void)
 
 
 	if(nfds < 0) {
-		fprintf(stderr, "epoll wait error\n");
+		fprintf(stderr, "epoll wait %d\n", errno);
 		/* return but this is epoll wait error */
 		if (errno == EINTR)
 			return false;

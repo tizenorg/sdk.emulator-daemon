@@ -578,28 +578,33 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	int len = 0;
 	int getcnt = 0;
 	char* r_tmpbuf = NULL;
+	const int alloc_size = sizeof(char) * size + 1;
 
-	r_tmpbuf = (char*)malloc(sizeof(char) * size + 1);
-	if(r_tmpbuf == NULL){
+	r_tmpbuf = (char*)malloc(alloc_size);
+	if(r_tmpbuf == NULL)
+	{
 	    return -1;
 	}
 
-	*r_databuf = (char*)malloc(sizeof(char) * size + 1);
-	if(*r_databuf == NULL){
+	char* databuf = (char*)malloc(alloc_size);
+	if(databuf == NULL)
+	{
 	    free(r_tmpbuf);
+	    *r_databuf = NULL;
 	    return -1;
 	}
-	memset(*r_databuf, '\0', sizeof(char) * size + 1);
+
+	memset(databuf, '\0', sizeof(*databuf));
 
 	while(recvd_size < size)
 	{
-		memset(r_tmpbuf, '\0', sizeof(char) * size + 1);
+		memset(r_tmpbuf, '\0', sizeof(*r_tmpbuf));
 		len = recv(event_fd, r_tmpbuf, size - recvd_size, 0);
 		if (len < 0) {
 			break;
 		}
 
-		memcpy((*r_databuf) + recvd_size, r_tmpbuf, len);
+		memcpy(databuf + recvd_size, r_tmpbuf, len);
 		recvd_size += len;
 		getcnt++;
 		if(getcnt > MAX_GETCNT) {
@@ -608,6 +613,8 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	}
 	free(r_tmpbuf);
 	r_tmpbuf = NULL;
+
+	*r_databuf = databuf;
 
 	return recvd_size;
 }
@@ -638,22 +645,22 @@ void client_recv(int event_fd)
 {
 	char* r_databuf = NULL;
 	char tmpbuf[48];
-	int len, recvd_size, parse_len = 0;
-	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
-	if (packet == NULL)
-	{
-	    return;
+	int len = 0, recvd_size = 0, parse_len = 0;
+
+	if (event_fd == -1) {
+		LOG("invalid event fd");
+		return;
 	}
-	memset(packet, 0, sizeof(LXT_MESSAGE));
+
+	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	if (!packet)
+	    return;
+
+	memset(packet, 0, sizeof(*packet));
 
 	LOG("start (event fd: %d)", event_fd);
 	/* there need to be more precise code here */ 
 	/* for example , packet check(protocol needed) , real recv size check , etc. */
-	if (event_fd == -1) {
-		free(packet);
-		packet = NULL;
-		return;
-	}
 
 	// vmodem to event injector
 	if(event_fd == g_vm_sockfd)
@@ -677,48 +684,36 @@ void client_recv(int event_fd)
 		}
 
 		LOG("vmodem header recv buffer: %s", r_databuf);
-		memcpy((void*)packet, (void*)r_databuf, sizeof(char) * HEADER_SIZE);
+		memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 
 		LOG("first packet of vmodem to event injector %s", r_databuf);
 		free(r_databuf);
 		r_databuf = NULL;
 		
 		if(g_sdbd_sockfd != -1)
+		{
 			len = send(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+			LOG("send_len: %d, next packet length: %d", len, packet->length);
+		}
 		
-		LOG("send_len: %d, next packet length: %d", len, packet->length);
-
-		if(packet->length <= 0)
+		if (packet->length > 0)
 		{
-			free(packet);
-			packet = NULL;
-			return;
-		}	
-			
-		if(g_sdbd_sockfd != -1)
-			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
-		else
-		{
-			// for packet clear
-			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
-			return;
+			if (g_sdbd_sockfd != -1)
+			{
+				recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+				LOG("recv_len: %d, vmodem data recv buffer: %s", recvd_size, r_databuf);
+				if (recvd_size > 0)
+				{
+					len = send(g_sdbd_sockfd, r_databuf, packet->length, 0);
+					LOG("send_len: %d", len);
+				}
+			}
+			else
+			{
+				// for packet clear
+				recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+			}
 		}
-
-		LOG("recv_len: %d, vmodem data recv buffer: %s", recvd_size, r_databuf);
-
-		if(recvd_size <= 0)
-		{
-			free(r_databuf);
-			r_databuf = NULL;
-			free(packet);
-			packet = NULL;
-			return;
-		}
-
-		if(g_sdbd_sockfd != -1)
-			len = send(g_sdbd_sockfd, r_databuf, packet->length, 0);
-
-		LOG("send_len: %d", len);
 	}
 	else	// event injector to vmodem, sensord or gpsd
 	{

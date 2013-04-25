@@ -1298,7 +1298,13 @@ void setting_location(char* databuf)
 //sdcard event
 void send_guest_server(char* databuf)
 {
-	char buf[32];
+	if (!databuf)
+	{
+		LOG("invalid data buf");
+		return;
+	}
+
+	char buf[64];
 	struct sockaddr_in si_other;
 	int s, slen=sizeof(si_other);
  	FILE* fd;
@@ -1332,7 +1338,8 @@ void send_guest_server(char* databuf)
 	}
 
 	memset(buf, '\0', sizeof(buf));
-	sprintf(buf, "4\n%s", databuf);
+	snprintf(buf, 60, "4\n%s", databuf);
+
 	LOG("sendGuestServer msg: %s", buf);
 	if(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
 	{     

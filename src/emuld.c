@@ -594,11 +594,11 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	    return -1;
 	}
 
-	memset(databuf, '\0', sizeof(*databuf));
+	memset(databuf, '\0', alloc_size);
 
 	while(recvd_size < size)
 	{
-		memset(r_tmpbuf, '\0', sizeof(*r_tmpbuf));
+		memset(r_tmpbuf, '\0', alloc_size);
 		len = recv(event_fd, r_tmpbuf, size - recvd_size, 0);
 		if (len < 0) {
 			break;

@@ -1304,7 +1304,7 @@ void send_guest_server(char* databuf)
 		return;
 	}
 
-	char buf[64];
+	char buf[32];
 	struct sockaddr_in si_other;
 	int s, slen=sizeof(si_other);
  	FILE* fd;
@@ -1338,7 +1338,7 @@ void send_guest_server(char* databuf)
 	}
 
 	memset(buf, '\0', sizeof(buf));
-	snprintf(buf, 60, "4\n%s", databuf);
+	snprintf(buf, sizeof(buf), "4\n%s", databuf);
 
 	LOG("sendGuestServer msg: %s", buf);
 	if(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)

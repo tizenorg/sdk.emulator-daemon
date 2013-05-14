@@ -322,6 +322,7 @@ void* mount_sdcard(void* data)
 					/* W/A for sdcard file permission end */
 
 					system("chmod -R 777 /opt/storage/sdcard");
+					system("find /opt/storage/sdcard | xargs chsmack -a system::media -t");
 					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 				}
 			}

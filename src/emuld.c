@@ -245,7 +245,7 @@ int is_mounted()
 
 	for(i = 0; i < 10; i++)
 	{
-		sprintf(file_name, "/dev/emul_mmcblk%d", i);
+		sprintf(file_name, "/dev/mmcblk%d", i);
 		ret = access( file_name, F_OK );
 		if( ret == 0 )
 		{
@@ -262,7 +262,7 @@ int is_mounted()
 
 void* mount_sdcard(void* data)
 {
-	int ret = -1, i = 0, vconf_value = -1;	
+	int ret = -1, i = 0;
 	struct stat buf;
 	char file_name[128], command[256];
 	memset(file_name, '\0', sizeof(file_name));
@@ -279,7 +279,7 @@ void* mount_sdcard(void* data)
 	{	
 		for(i = 0; i < 10; i++)
 		{
-			sprintf(file_name, "/dev/emul_mmcblk%d", i);
+			sprintf(file_name, "/dev/mmcblk%d", i);
 			ret = access( file_name, F_OK );
 			if( ret == 0 )
 			{
@@ -297,14 +297,11 @@ void* mount_sdcard(void* data)
 		if( i != 10 )
 		{
 			LOG( "%s is exist", file_name);
-			ret = mount(file_name, "/mnt/mmc", "ext4", 0, "");
-			LOG("mount ret = %d, errno = %d", ret, errno);
-			
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
 			{
-				packet->length = strlen(SDpath);		// length
-				packet->group = 11;				// sdcard
+				packet->length = strlen(SDpath); // length
+				packet->group = 11; // sdcard
 				if(ret == 0)
 					packet->action = 1;	// mounted
 				else
@@ -313,20 +310,12 @@ void* mount_sdcard(void* data)
 				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
 				send(g_sdcard_sockfd, SDpath, packet->length, 0);
-				
+
 				if(ret == 0)
 				{
-					 /* W/A for sdcard file permission start */
-					system("mkdir -p /opt/storage/sdcard/Camera /opt/storage/sdcard/Downloads /opt/storage/sdcard/Images /opt/storage/sdcard/Sounds /opt/storage/sdcard/Videos");
-					system("chown 5000:5000 -R /opt/storage/sdcard");
-					/* W/A for sdcard file permission end */
-
-					system("chmod -R 777 /opt/storage/sdcard");
-					system("find /opt/storage/sdcard | xargs chsmack -a system::media -t");
-					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
+					system("/usr/bin/sys_event mmcblk_add");
 				}
 			}
-
 			break;
 		}
 		else
@@ -336,12 +325,12 @@ void* mount_sdcard(void* data)
 		}		
 	}
 
-	pthread_exit((void *) 0); 
-} 
+	pthread_exit((void *) 0);
+}
 
 int umount_sdcard(void)
 {
-	int ret = -1, i = 0;	
+	int ret = -1, i = 0;
 	char file_name[128];
 	memset(file_name, '\0', sizeof(file_name));
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
@@ -356,14 +345,11 @@ int umount_sdcard(void)
 
 	for(i = 0; i < 10; i++)
 	{
-		sprintf(file_name, "/dev/emul_mmcblk%d", i);
+		sprintf(file_name, "/dev/mmcblk%d", i);
 		ret = access( file_name, F_OK);
 		if ( ret == 0 )
 		{
 			LOG( "%s is exist", file_name);
-			ret = umount("/mnt/mmc");
-			LOG("umount ret = %d, errno = %d", ret, errno);
-			
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
 			{
@@ -382,10 +368,9 @@ int umount_sdcard(void)
 				{
 					memset(SDpath, '\0', sizeof(SDpath));
 					sprintf(SDpath, "umounted");
-					system("vconftool set -t int memory/sysman/mmc 0 -i -f");
-				}				
+					system("/usr/bin/sys_event mmcblk_remove");
+				}
 			}
-
 			break;
 		}
 		else
@@ -399,7 +384,7 @@ int umount_sdcard(void)
 	    packet = NULL;
 	}
 	return ret;
-} 
+}
 
 void epoll_init(void)
 {
@@ -416,7 +401,7 @@ void epoll_init(void)
 	LOG("[START] epoll creation success");
 
 	/* event control set */
-	events.events = EPOLLIN;	// check In event
+	events.events = EPOLLIN; // check In event
 	events.data.fd = g_svr_sockfd;
 
 	/* server events set(read for accept) */
@@ -439,7 +424,7 @@ void epoll_cli_add(int cli_fd)
 
 	/* event control set for read event */
 	events.events = EPOLLIN;
-	events.data.fd = cli_fd; 
+	events.data.fd = cli_fd;
 
 	if( epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, cli_fd, &events) < 0 )
 	{
@@ -456,7 +441,7 @@ void userpool_add(int cli_fd, unsigned short cli_port)
 	{
 		if(g_client[i].cli_sockfd == -1) break;
 	}
-	if( i >= MAX_CLIENT ){ 
+	if( i >= MAX_CLIENT ){
 	    close(cli_fd);
 	    return;
 	}
@@ -475,7 +460,7 @@ void userpool_delete(int cli_fd)
 	{
 		if(g_client[i].cli_sockfd == cli_fd)
 		{
-			g_client[i].cli_sockfd = -1;	
+			g_client[i].cli_sockfd = -1;
 			break;
 		}
 	}
@@ -631,7 +616,7 @@ int powerdown_by_force()
 		LOG("wait");
 		usleep(100000);
 		gettimeofday(&now, NULL);
-	}   
+	}
 
 	LOG("Power off by force");
 	LOG("sync");
@@ -660,12 +645,12 @@ void client_recv(int event_fd)
 	memset(packet, 0, sizeof(*packet));
 
 	LOG("start (event fd: %d)", event_fd);
-	/* there need to be more precise code here */ 
+	/* there need to be more precise code here */
 	/* for example , packet check(protocol needed) , real recv size check , etc. */
 
 	// vmodem to event injector
 	if(event_fd == g_vm_sockfd)
-	{	
+	{
 		recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
 		LOG("receive size: %d", recvd_size);
 		if(recvd_size <= 0)
@@ -690,13 +675,13 @@ void client_recv(int event_fd)
 		LOG("first packet of vmodem to event injector %s", r_databuf);
 		free(r_databuf);
 		r_databuf = NULL;
-		
+
 		if(g_sdbd_sockfd != -1)
 		{
 			len = send(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 			LOG("send_len: %d, next packet length: %d", len, packet->length);
 		}
-		
+
 		if (packet->length > 0)
 		{
 			if (g_sdbd_sockfd != -1)
@@ -759,9 +744,9 @@ void client_recv(int event_fd)
 				return;
 			}
 
-			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);			
+			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
 			len = send(g_vm_sockfd, r_databuf, HEADER_SIZE, 0);
-			
+
 			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 
 			LOG("next packet length: %d", packet->length);
@@ -771,7 +756,7 @@ void client_recv(int event_fd)
 			r_databuf = NULL;
 
 			if(packet->length == 0)
-			{	
+			{
 				if(packet->action == 71)	// that's strange packet from telephony initialize
 				{
 					packet->length = 4;
@@ -782,7 +767,7 @@ void client_recv(int event_fd)
 					packet = NULL;
 					return;
 				}
-			}				
+			}
 
 			if(!is_vm_connected())	// The connection is lost with vmodem
 				return;
@@ -792,7 +777,7 @@ void client_recv(int event_fd)
 			if(recvd_size <= 0)
 			{
 				free(r_databuf);
-				r_databuf = NULL;				
+				r_databuf = NULL;
 				free(packet);
 				packet = NULL;
 				return;
@@ -806,7 +791,7 @@ void client_recv(int event_fd)
 		else if(strncmp(tmpbuf, "sensor", 6) == 0)
 		{
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
-			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);	
+			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 
 			LOG("sensor packet_length: %d", packet->length);
 
@@ -828,7 +813,7 @@ void client_recv(int event_fd)
 					LOG("pthread create fail!");
 				}
 			}
-			else if(sendto(uSensordFd, r_databuf, packet->length, 0, (struct sockaddr*)&si_sensord_other, sslen) == -1) {     
+			else if(sendto(uSensordFd, r_databuf, packet->length, 0, (struct sockaddr*)&si_sensord_other, sslen) == -1) {
 				LOG("sendto error!");
 			}
 		}
@@ -864,13 +849,13 @@ void client_recv(int event_fd)
 		{
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
 			if( recvd_size <= 0 )
-                	{
-                        	free(r_databuf);
+			{
+				free(r_databuf);
 				r_databuf = NULL;
 				free(packet);
 				packet = NULL;
-                        	return;
-                	}
+				return;
+			}
 
 			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 			LOG("nfc packet_length: %d", packet->length);
@@ -915,7 +900,6 @@ void client_recv(int event_fd)
 		}
 		else if(strncmp(tmpbuf, "system", 6) == 0)
 		{
-
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
 			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 
@@ -940,7 +924,7 @@ void client_recv(int event_fd)
 		{
 			g_sdcard_sockfd = event_fd;
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
-			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);	
+			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 
 			LOG("sdcard packet_length: %d", packet->length);
 
@@ -967,7 +951,7 @@ void client_recv(int event_fd)
 
 			LOG("Something may be added in the data end, but it does not matter.");
 			LOG("sdcard data recv buffer: %s", r_databuf);
-			
+
 			char token[] = "\n";
 			char tmpdata[recvd_size];
 			memcpy(tmpdata, r_databuf, recvd_size);
@@ -982,7 +966,7 @@ void client_recv(int event_fd)
 			{
 			case 0:							// umount
 				mount_status = umount_sdcard();
-				if(mount_status == 0)				
+				if(mount_status == 0)
 					send_guest_server(r_databuf);
 				break;
 			case 1:							// mount
@@ -1012,7 +996,7 @@ void client_recv(int event_fd)
 				case 0:
 					mntData->action = 2;			// umounted status
 					send(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
-					
+
 					LOG("SDpath is %s", SDpath);
 					send(g_sdcard_sockfd, SDpath, mntData->length, 0);
 					memset(SDpath, '\0', sizeof(SDpath));
@@ -1033,8 +1017,8 @@ void client_recv(int event_fd)
 			default:
 				LOG("unknown data %s", ret);
 				break;
-			}	
-		}		
+			}
+		}
 		else
 		{
 			LOG("Unknown packet: %s", tmpbuf);
@@ -1075,7 +1059,7 @@ bool server_process(void)
 		if (errno == EINTR)
 			return false;
 		return true;
-	} 
+	}
 
 	for( i = 0 ; i < nfds ; i++ )
 	{
@@ -1083,7 +1067,7 @@ bool server_process(void)
 		if(g_events[i].data.fd == g_svr_sockfd)
 		{
 			cli_sockfd = accept(g_svr_sockfd, (struct sockaddr *)&cli_addr,(socklen_t *)&cli_len);
-			if(cli_sockfd < 0) 
+			if(cli_sockfd < 0)
 			{
 				/* accept error */
 				fprintf(stderr, "accept error\n");
@@ -1106,7 +1090,7 @@ bool server_process(void)
 		}
 		/* if not server socket , this socket is for client socket, so we read it */
 
-		client_recv(g_events[i].data.fd);    
+		client_recv(g_events[i].data.fd);
 	} /* end of for 0-nfds */
 
 	return false;
@@ -1233,7 +1217,7 @@ void setting_device()
 	}
 	free(packet);
 
-	pthread_exit((void *) 0); 
+	pthread_exit((void *) 0);
 }
 
 // location event
@@ -1308,7 +1292,7 @@ void send_guest_server(char* databuf)
 	char buf[32];
 	struct sockaddr_in si_other;
 	int s, slen=sizeof(si_other);
- 	FILE* fd;
+	FILE* fd;
 	char fbuf[16];
 	int port;
 	fd = fopen("/opt/home/sdb_port.txt", "r");
@@ -1330,7 +1314,7 @@ void send_guest_server(char* databuf)
 		LOG("socket error!");
 		return;
 	}
-	    
+
 	memset((char *) &si_other, 0, sizeof(si_other));
 	si_other.sin_family = AF_INET;
 	si_other.sin_port = htons(port);
@@ -1343,10 +1327,10 @@ void send_guest_server(char* databuf)
 
 	LOG("sendGuestServer msg: %s", buf);
 	if(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
-	{     
+	{
 		LOG("sendto error!");
 	}
-	
+
 	close(s);
 }
 
@@ -1363,11 +1347,11 @@ int main( int argc , char *argv[])
 
 	LOG("start");
 	/* entry , argument check and process */
-	if(argc < 3){ 
+	if(argc < 3){
 
 		g_svr_port = DEFAULT_PORT;
 
-	}else {
+	} else {
 
 		if(strcmp("-port",argv[1]) ==  0 ) {
 
@@ -1375,11 +1359,11 @@ int main( int argc , char *argv[])
 			if(g_svr_port < 1024) {
 				fprintf(stderr, "[STOP] port number invalid : %d\n",g_svr_port);
 				exit(0);
-			} 
+			}
 		}
 	}
 
-	init_data0();   
+	init_data0();
 
 	/* init server */
 	init_server0(g_svr_port);

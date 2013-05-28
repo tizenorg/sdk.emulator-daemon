@@ -15,19 +15,30 @@ BuildRequires:  pkgconfig(vconf)
 %setup -q
 
 %build
-export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"    
-    
+export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"
+
 LDFLAGS="$LDFLAGS" cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
 
 make
 
 %install
+#for systemd
 rm -rf %{buildroot}
-if [ ! -d %{buildroot}/usr/lib/systemd/system/multi-user.target.wants ]; then
-    mkdir -p %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
+if [ ! -d %{buildroot}/usr/lib/systemd/system/emulator.target.wants ]; then
+    mkdir -p %{buildroot}/usr/lib/systemd/system/emulator.target.wants
 fi
 cp emuld.service %{buildroot}/usr/lib/systemd/system/.
-ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/emuld.service
+ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/emulator.target.wants/emuld.service
+
+#for legacy init
+if [ ! -d %{buildroot}/etc/init.d ]; then
+    mkdir -p %{buildroot}/etc/init.d
+fi
+cp emuld %{buildroot}/etc/init.d/.
+if [ ! -d %{buildroot}/etc/rc.d/rc3.d ]; then
+    mkdir -p %{buildroot}/etc/rc.d/rc3.d
+fi
+ln -s /etc/init.d/emuld %{buildroot}/etc/rc.d/rc3.d/S04emuld
 
 %make_install
 
@@ -50,6 +61,8 @@ touch /opt/nfc/sdkMsg
 %defattr(-,root,root,-)
 %{_prefix}/bin/emuld
 /usr/lib/systemd/system/emuld.service
-/usr/lib/systemd/system/multi-user.target.wants/emuld.service
+/usr/lib/systemd/system/emulator.target.wants/emuld.service
+/etc/init.d/emuld
+/etc/rc.d/rc3.d/S04emuld
 
 %changelog

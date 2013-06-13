@@ -355,16 +355,12 @@ int umount_sdcard(void)
 			{
 				packet->length = strlen(SDpath);		// length
 				packet->group = 11;				// sdcard
-				if(ret == 0)
-					packet->action = 0;				// unmounted
-				else
-					packet->action = 4;				// failed
+				packet->action = 0;				// unmounted
 
 				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
 				send(g_sdcard_sockfd, SDpath, packet->length, 0);
 				
-				if(ret == 0)
 				{
 					memset(SDpath, '\0', sizeof(SDpath));
 					sprintf(SDpath, "umounted");

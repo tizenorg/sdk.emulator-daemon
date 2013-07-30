@@ -1,13 +1,13 @@
 #git:/slp/pkgs/e/emulator-daemon
 Name: emuld
-Version: 0.2.17
+Version: 0.2.40
 Release: 1
 Summary: emuld is used for communication emulator between and ide.
 License: Apache
 Source0: %{name}-%{version}.tar.gz
-BuildArch: i386
-ExclusiveArch: %{ix86}
+Source1001: packaging/emuld.manifest
 BuildRequires: cmake
+BuildRequires:  pkgconfig(vconf)
 
 %description
 
@@ -15,14 +15,31 @@ BuildRequires: cmake
 %setup -q
 
 %build
-export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"    
-    
+export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"
+
 LDFLAGS="$LDFLAGS" cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
 
 make
 
 %install
+#for systemd
 rm -rf %{buildroot}
+if [ ! -d %{buildroot}/usr/lib/systemd/system/emulator.target.wants ]; then
+    mkdir -p %{buildroot}/usr/lib/systemd/system/emulator.target.wants
+fi
+cp emuld.service %{buildroot}/usr/lib/systemd/system/.
+ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/emulator.target.wants/emuld.service
+
+#for legacy init
+if [ ! -d %{buildroot}/etc/init.d ]; then
+    mkdir -p %{buildroot}/etc/init.d
+fi
+cp emuld %{buildroot}/etc/init.d/.
+if [ ! -d %{buildroot}/etc/rc.d/rc3.d ]; then
+    mkdir -p %{buildroot}/etc/rc.d/rc3.d
+fi
+ln -s /etc/init.d/emuld %{buildroot}/etc/rc.d/rc3.d/S04emuld
+
 %make_install
 
 %clean
@@ -43,5 +60,9 @@ touch /opt/nfc/sdkMsg
 %files
 %defattr(-,root,root,-)
 %{_prefix}/bin/emuld
+/usr/lib/systemd/system/emuld.service
+/usr/lib/systemd/system/emulator.target.wants/emuld.service
+/etc/init.d/emuld
+/etc/rc.d/rc3.d/S04emuld
 
 %changelog

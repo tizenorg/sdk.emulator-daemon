@@ -3,9 +3,9 @@
  *
  * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
  *
- * Contact: 
+ * Contact:
+ * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
- * DongKyun Yun <dk77.yun@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +43,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <sys/mount.h>
+#include <stdbool.h>
 
 /* definition */
 #define MAX_CLIENT		10000
@@ -60,6 +61,9 @@
 #define POWEROFF_DURATION     	2
 
 /* function prototype */
+
+void set_vm_connect_status(const int v);
+bool is_vm_connected(void);
 void init_data0(void);            /* initialize data. */
 void init_server0(int svr_port);  /* server socket bind/listen */
 void* init_vm_connect(void* data);
@@ -71,7 +75,7 @@ int parse_val(char *buff, unsigned char data, char *parsbuf);
 void udp_init(void);
 int recv_data(int event_fd, char** r_databuf, int size);
 void client_recv(int event_fd);
-void server_process(void);
+bool server_process(void);
 void end_server(int sig);
 int is_mounted(void);
 
@@ -80,6 +84,7 @@ FILE* log_fd;
 
 // location
 void setting_location(char* databuf);
+
 #define LOG(fmt, arg...) \
 	do { \
 		log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \

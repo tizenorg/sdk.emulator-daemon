@@ -90,7 +90,7 @@ void setting_location(char* databuf);
 		log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
 	} while (0)
 
-inline void log_print_out(char *fmt, ...)
+static inline void log_print_out(char *fmt, ...)
 {
 
 #ifdef EMD_DEBUG

@@ -84,7 +84,7 @@ char SDpath[256];
 
 unsigned char ActionID = 0;
 char GetBuffer[256];
-void setting_device(); 
+void* setting_device();
 /*--------------------------------------------------------------*/
 /* FUNCTION PART 
    ---------------------------------------------------------------*/
@@ -177,6 +177,16 @@ void init_server0(int svr_port)
 } 
 /*------------------------------- end of function init_server0 */
 
+static void send_msg(int fd, const void* data, size_t len, int flag)
+{
+	size_t ret = 0;
+	ret = send(fd, data, len, flag);
+	if (ret < 0)
+	{
+		LOG("Sending data to fd %d failed.", fd);
+	}
+}
+
 void* init_vm_connect(void* data)
 {
 	struct sockaddr_in vm_addr;
@@ -236,6 +246,17 @@ void* init_vm_connect(void* data)
 	pthread_exit((void *) 0); 
 }
 
+void system_msg(const char* command)
+{
+	int ret = 0;
+
+	ret = system(command);
+	if (ret == -1)
+	{
+		LOG("system command (%s)failed.", command);
+	}
+}
+
 int is_mounted()
 {
 	int ret = -1, i = 0;
@@ -287,7 +308,7 @@ void* mount_sdcard(void* data)
 				if(!S_ISBLK(buf.st_mode))
 				{
 					sprintf(command, "rm -rf %s", file_name);
-					system(command);
+					system_msg(command);
 				}
 				else
 					break;
@@ -307,13 +328,13 @@ void* mount_sdcard(void* data)
 				else
 					packet->action = 5;	// failed
 
-				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+				send_msg(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
-				send(g_sdcard_sockfd, SDpath, packet->length, 0);
+				send_msg(g_sdcard_sockfd, SDpath, packet->length, 0);
 
 				if(ret == 0)
 				{
-					system("/usr/bin/sys_event mmcblk_add");
+					system_msg("/usr/bin/sys_event mmcblk_add");
 				}
 			}
 			break;
@@ -357,14 +378,14 @@ int umount_sdcard(void)
 				packet->group = 11;				// sdcard
 				packet->action = 0;				// unmounted
 
-				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+				send_msg(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
-				send(g_sdcard_sockfd, SDpath, packet->length, 0);
+				send_msg(g_sdcard_sockfd, SDpath, packet->length, 0);
 				
 				{
 					memset(SDpath, '\0', sizeof(SDpath));
 					sprintf(SDpath, "umounted");
-					system("/usr/bin/sys_event mmcblk_remove");
+					system_msg("/usr/bin/sys_event mmcblk_remove");
 				}
 			}
 			break;
@@ -623,11 +644,68 @@ int powerdown_by_force()
 	return 1;
 }
 
+//sdcard event
+static void send_guest_server(char* databuf)
+{
+	if (!databuf)
+	{
+		LOG("invalid data buf");
+		return;
+	}
+
+	char buf[32];
+	struct sockaddr_in si_other;
+	int s, slen=sizeof(si_other);
+	FILE* fd;
+	char* ret = NULL;
+	char fbuf[16];
+	int port;
+	fd = fopen("/opt/home/sdb_port.txt", "r");
+	LOG("sdb_port.txt fopen fd is %d", fd);
+	if(!fd)
+	{
+		LOG("fopen /opt/home/sdb_port.txt fail");
+		port = 3581;
+	}
+	else
+	{
+		ret = fgets(fbuf, 16, fd);
+		if (ret == NULL)
+			LOG("Failed to read sdb port");
+		fclose(fd);
+		port = atoi(fbuf) + 3;
+	}
+
+	if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
+	{
+		LOG("socket error!");
+		return;
+	}
+
+	memset((char *) &si_other, 0, sizeof(si_other));
+	si_other.sin_family = AF_INET;
+	si_other.sin_port = htons(port);
+	if (inet_aton(SRV_IP, &si_other.sin_addr)==0) {
+		  fprintf(stderr, "inet_aton() failed\n");
+	}
+
+	memset(buf, '\0', sizeof(buf));
+	snprintf(buf, sizeof(buf), "4\n%s", databuf);
+
+	LOG("sendGuestServer msg: %s", buf);
+	if(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
+	{
+		LOG("sendto error!");
+	}
+
+	close(s);
+}
+
 void client_recv(int event_fd)
 {
 	char* r_databuf = NULL;
 	char tmpbuf[48];
-	int len = 0, recvd_size = 0, parse_len = 0;
+	int recvd_size = 0, parse_len = 0;
 
 	if (event_fd == -1) {
 		LOG("invalid event fd");
@@ -674,8 +752,8 @@ void client_recv(int event_fd)
 
 		if(g_sdbd_sockfd != -1)
 		{
-			len = send(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
-			LOG("send_len: %d, next packet length: %d", len, packet->length);
+			send_msg(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+			LOG("next packet length: %d", packet->length);
 		}
 
 		if (packet->length > 0)
@@ -686,8 +764,7 @@ void client_recv(int event_fd)
 				LOG("recv_len: %d, vmodem data recv buffer: %s", recvd_size, r_databuf);
 				if (recvd_size > 0)
 				{
-					len = send(g_sdbd_sockfd, r_databuf, packet->length, 0);
-					LOG("send_len: %d", len);
+					send_msg(g_sdbd_sockfd, r_databuf, packet->length, 0);
 				}
 			}
 			else
@@ -741,7 +818,7 @@ void client_recv(int event_fd)
 			}
 
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
-			len = send(g_vm_sockfd, r_databuf, HEADER_SIZE, 0);
+			send_msg(g_vm_sockfd, r_databuf, HEADER_SIZE, 0);
 
 			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
 
@@ -781,7 +858,7 @@ void client_recv(int event_fd)
 				LOG("Something may be added in the data end, but it does not matter.");
 				LOG("telephony data recv buffer: %s", r_databuf);
 
-				len = send(g_vm_sockfd, r_databuf, packet->length, 0);
+				send_msg(g_vm_sockfd, r_databuf, packet->length, 0);
 			}
 		}
 		else if(strncmp(tmpbuf, "sensor", 6) == 0)
@@ -911,7 +988,7 @@ void client_recv(int event_fd)
 
 			LOG("sync");
 			sync();
-			system("/etc/rc.d/rc.shutdown &");
+			system_msg("/etc/rc.d/rc.shutdown &");
 			gettimeofday(&tv_start_poweroff, NULL);
 			powerdown_by_force();
 
@@ -991,19 +1068,19 @@ void client_recv(int event_fd)
 				{
 				case 0:
 					mntData->action = 2;			// umounted status
-					send(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
+					send_msg(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
 
 					LOG("SDpath is %s", SDpath);
-					send(g_sdcard_sockfd, SDpath, mntData->length, 0);
+					send_msg(g_sdcard_sockfd, SDpath, mntData->length, 0);
 					memset(SDpath, '\0', sizeof(SDpath));
 					sprintf(SDpath, "umounted");
 					break;
 				case 1:
 					mntData->action = 3;			// mounted status
-					send(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
+					send_msg(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
 
 					LOG("SDpath is %s", SDpath);
-					send(g_sdcard_sockfd, SDpath, mntData->length, 0);
+					send_msg(g_sdcard_sockfd, SDpath, mntData->length, 0);
 					break;
 				default:
 					break;
@@ -1103,7 +1180,7 @@ void end_server(int sig)
 	exit(0);
 }
 
-void setting_device()
+void* setting_device()
 {
 	pthread_detach(pthread_self());
 
@@ -1202,9 +1279,9 @@ void setting_device()
 			packet->group  = STATUS;
 			packet->action = ActionID;
 		}
-		send(g_get_status_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+		send_msg(g_get_status_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 		if (packet->length != 0) {
-			send(g_get_status_sockfd, msg, packet->length, 0);
+			send_msg(g_get_status_sockfd, msg, packet->length, 0);
 		}
 	}
 
@@ -1242,18 +1319,18 @@ void setting_location(char* databuf)
 			break;
 		}
 		LOG("Location Command : %s", command);
-		system(command);
+		system_msg(command);
 	} else {
 		*s = '\0';
 		int mode = atoi(databuf);
 		if(mode == 1) { // NMEA MODE (LOG MODE)
 			sprintf(command, "vconftool set -t string db/location/replay/FileName \"%s\"", s+1);
 			LOG("%s", command);
-			system(command);
+			system_msg(command);
 			memset(command, 0, 256);
 			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
 			LOG("%s", command);
-			system(command);
+			system_msg(command);
 		} else if(mode == 2) {
 			memset(latitude,  0, 128);
 			memset(longitude, 0, 128);
@@ -1266,68 +1343,14 @@ void setting_location(char* databuf)
 			// Latitude
 			sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", latitude);
 			LOG("%s", command);
-			system(command);
+			system_msg(command);
 
 			// Longitude
 			sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", longitude);
 			LOG("%s", command);
-			system(command);
+			system_msg(command);
 		}
 	}
-}
-
-//sdcard event
-void send_guest_server(char* databuf)
-{
-	if (!databuf)
-	{
-		LOG("invalid data buf");
-		return;
-	}
-
-	char buf[32];
-	struct sockaddr_in si_other;
-	int s, slen=sizeof(si_other);
-	FILE* fd;
-	char fbuf[16];
-	int port;
-	fd = fopen("/opt/home/sdb_port.txt", "r");
-	LOG("sdb_port.txt fopen fd is %d", fd);
-	if(!fd)
-	{
-		LOG("fopen /opt/home/sdb_port.txt fail");
-		port = 3581;
-	}
-	else
-	{
-		fgets(fbuf, 16, fd);
-		fclose(fd);
-		port = atoi(fbuf) + 3;
-	}
-
-	if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
-	{
-		LOG("socket error!");
-		return;
-	}
-
-	memset((char *) &si_other, 0, sizeof(si_other));
-	si_other.sin_family = AF_INET;
-	si_other.sin_port = htons(port);
-	if (inet_aton(SRV_IP, &si_other.sin_addr)==0) {
-		  fprintf(stderr, "inet_aton() failed\n");
-	}
-
-	memset(buf, '\0', sizeof(buf));
-	snprintf(buf, sizeof(buf), "4\n%s", databuf);
-
-	LOG("sendGuestServer msg: %s", buf);
-	if(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
-	{
-		LOG("sendto error!");
-	}
-
-	close(s);
 }
 
 int main( int argc , char *argv[])
@@ -1337,8 +1360,8 @@ int main( int argc , char *argv[])
 	if(log_print == 1)
 	{
 		// for emuld log file
-		system("rm /opt/sensor/emuld.log");
-		system("touch /opt/sensor/emuld.log");
+		system_msg("rm /opt/sensor/emuld.log");
+		system_msg("touch /opt/sensor/emuld.log");
 	}
 
 	LOG("start");
@@ -1383,5 +1406,7 @@ int main( int argc , char *argv[])
 	state = pthread_mutex_destroy(&mutex_vmconnect);
 
 	fprintf(stderr, "emuld exit\n");
+
+	return 0;
 }
 

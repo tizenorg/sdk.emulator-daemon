@@ -26,8 +26,19 @@
  */
 
 //#include <vconf.h>
+#include "emuld.h"
 #include "emuld_common.h"
 
+static int file_read(FILE* fd)
+{
+	int ret = 0;
+	int status = 0;
+	ret = fscanf(fd, "%d", &status);
+	if (ret < 0)
+		LOG("fscanf failed with fd: %d", fd);
+
+	return status;
+}
 
 char* message;
 char* get_usb_status(void* p)
@@ -38,8 +49,7 @@ char* get_usb_status(void* p)
 		return 0;
 	}
 
-	int status = 0;
-	fscanf(fd, "%d", &status);
+	int status = file_read(fd);
 	fclose(fd);
 
 	// int to byte
@@ -67,8 +77,7 @@ char* get_earjack_status(void* p)
 		return 0;
 	}
 
-	int status = 0;
-	fscanf(fd, "%d", &status);
+	int status = file_read(fd);
 	fclose(fd);
 
 	// int to byte
@@ -121,8 +130,7 @@ char* get_battery_level(void* p)
 		return 0;
 	}
 
-	int level = 0;
-	fscanf(fd, "%d", &level);
+	int level = file_read(fd);
 	fclose(fd);
 
 	// int to byte
@@ -150,12 +158,11 @@ char* get_battery_charger(void* p)
 		return 0;
 	}
 
-	int charge = 0;
-	fscanf(fd, "%d", &charge);
+	int charge = file_read(fd);
 	fclose(fd);
+
 	// int to byte
 	message = (char*)malloc(5);
-
 	message[3] = (char) (charge & 0xff);
 	message[2] = (char) (charge >> 8 & 0xff);
 	message[1] = (char) (charge >> 16 & 0xff);
@@ -179,9 +186,9 @@ char* get_proximity_status(void* p)
 		return 0;
 	}
 
-	int status = 0;
-	fscanf(fd, "%d", &status);
+	int status = file_read(fd);
 	fclose(fd);
+
 	// int to byte
 	message = (char*)malloc(5);
 
@@ -208,8 +215,7 @@ char* get_light_level(void* p)
 		return 0;
 	}
 
-	int level = 0;
-	fscanf(fd, "%d", &level);
+	int level = file_read(fd);
 	fclose(fd);
 
 	// int to byte
@@ -231,6 +237,7 @@ char* get_light_level(void* p)
 
 char* get_acceleration_value(void* p)
 {
+	char* ret = NULL;
 	FILE* fd = fopen("/opt/sensor/accel/xyz", "r");
 	if(!fd)
 	{
@@ -239,7 +246,10 @@ char* get_acceleration_value(void* p)
 
 	message = (char*)malloc(128);
 	//fscanf(fd, "%d, %d, %d", message);
-	fgets(message, 128, fd);
+	ret = fgets(message, 128, fd);
+	if (ret == NULL)
+		LOG("getting accel xyz value failed.");
+
 	fclose(fd);
 
 	LXT_MESSAGE* packet = p;
@@ -253,15 +263,12 @@ char* get_acceleration_value(void* p)
 
 char* get_gyroscope_value(void* p)
 {
-	int x;
-	int y;
-	int z;
 	FILE* fd = fopen("/opt/sensor/gyro/gyro_x_raw", "r");
 	if(!fd)
 	{
 		return 0;
 	}
-	fscanf(fd, "%d", &x);
+	int x = file_read(fd);
 	fclose(fd);
 
 	fd = fopen("/opt/sensor/gyro/gyro_y_raw", "r");
@@ -269,7 +276,7 @@ char* get_gyroscope_value(void* p)
 	{
 		return 0;
 	}
-	fscanf(fd, "%d", &y);
+	int y = file_read(fd);
 	fclose(fd);
 
 	fd = fopen("/opt/sensor/gyro/gyro_z_raw", "r");
@@ -277,7 +284,7 @@ char* get_gyroscope_value(void* p)
 	{
 		return 0;
 	}
-	fscanf(fd, "%d", &z);
+	int z = file_read(fd);
 	fclose(fd);
  
 	message = (char*)malloc(128);
@@ -299,6 +306,7 @@ char* get_gyroscope_value(void* p)
 
 char* get_magnetic_value(void* p)
 {
+	char* ret = NULL;
 	FILE* fd = fopen("/opt/sensor/geo/tesla", "r");
 	if(!fd)
 	{
@@ -306,7 +314,9 @@ char* get_magnetic_value(void* p)
 	}
 
 	message = (char*)malloc(128);
-	fgets(message, 128, fd);
+	ret = fgets(message, 128, fd);
+	if (ret == NULL)
+		LOG("getting tesla value failed.");
 	fclose(fd);
 
 	LXT_MESSAGE* packet = p;
@@ -377,6 +387,7 @@ char* get_location_status(void* p)
 
 char* get_nfc_status(void* p)
 {
+	int ret = 0;
 	FILE* fd = fopen("/opt/nfc/sdkMsg", "r");
 	if(!fd)
 	{
@@ -384,7 +395,9 @@ char* get_nfc_status(void* p)
 	}
 
 	message = (char*)malloc(5000);
-	fscanf(fd, "%s\n", message);
+	ret = fscanf(fd, "%s\n", message);
+	if (ret < 0)
+		LOG("fscanf failed with fd: %d", fd);
 	fclose(fd);
 
 	LXT_MESSAGE* packet = p;

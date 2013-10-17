@@ -170,7 +170,10 @@ void init_server0(int svr_port)
 	}
 
 	/* Listening */
-	listen(g_svr_sockfd,15); /* connection queue is 15. */
+	if (listen(g_svr_sockfd,15) < 0) /* connection queue is 15. */
+    {
+        LOG("Listen failed.");
+    }
 
 	LOG("[START] Now Server listening on port %d, EMdsockfd: %d"
 			,svr_port, g_svr_sockfd);
@@ -179,8 +182,7 @@ void init_server0(int svr_port)
 
 static void send_msg(int fd, const void* data, size_t len, int flag)
 {
-	size_t ret = 0;
-	ret = send(fd, data, len, flag);
+	ssize_t ret = send(fd, data, len, flag);
 	if (ret < 0)
 	{
 		LOG("Sending data to fd %d failed.", fd);
@@ -270,8 +272,8 @@ int is_mounted()
 		ret = access( file_name, F_OK );
 		if( ret == 0 )
 		{
-			lstat(file_name, &buf);
-			if(S_ISBLK(buf.st_mode))
+			ret = lstat(file_name, &buf);
+			if (ret == 0 && S_ISBLK(buf.st_mode))
 				return 1;
 			else
 				return 0;
@@ -304,8 +306,8 @@ void* mount_sdcard(void* data)
 			ret = access( file_name, F_OK );
 			if( ret == 0 )
 			{
-				lstat(file_name, &buf);
-				if(!S_ISBLK(buf.st_mode))
+				ret = lstat(file_name, &buf);
+				if(ret == 0 && !S_ISBLK(buf.st_mode))
 				{
 					sprintf(command, "rm -rf %s", file_name);
 					system_msg(command);

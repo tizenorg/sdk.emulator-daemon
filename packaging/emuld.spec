@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.5.2
+Version: 0.5.3
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -33,10 +33,6 @@ A emulator daemon is used for communication between guest and host
 %prep
 %setup -q
 
-%if ("%{_repository}" == "wearable")
-export CFLAGS+=" -DWEARABLE"
-%endif
-
 %if ("%{_repository}" == "mobile")
 export CFLAGS+=" -DMOBILE"
 %endif
@@ -63,12 +59,14 @@ cp LICENSE %{buildroot}/usr/share/license/%{name}
 %make_install
 
 %clean
+%if ("%{_repository}" == "mobile")
 make clean
 rm -rf CMakeCache.txt
 rm -rf CMakeFiles
 rm -rf cmake_install.cmake
 rm -rf Makefile
 rm -rf install_manifest.txt
+%endif
 
 %post
 chmod 770 %{_prefix}/bin/emuld

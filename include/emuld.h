@@ -63,12 +63,8 @@
 #define MAX_EVENTS          10000
 #define MAX_GETCNT          10
 #define DEFAULT_PORT        3577
-#ifdef MOBILE
 #define VMODEM_PORT         3578
-#endif
-#ifdef WEARABLE
-#define PEDOMETER_PORT      3600
-#endif
+
 #define SRV_IP              "10.0.2.2"
 #define ID_SIZE             10
 #define HEADER_SIZE         4

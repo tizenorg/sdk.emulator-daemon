@@ -527,42 +527,6 @@ bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
     return true;
 }
 
-#ifdef WEARABLE
-
-void print_binary(const char* data, const int len)
-{
-    int i;
-    printf("[DATA: ");
-    for(i = 0; i < len; i++) {
-        if(i == len - 1) {
-            printf("%02x]\n", data[i]);
-        } else {
-            printf("%02x,", data[i]);
-        }
-    }
-}
-
-bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
-{
-    int sent = 0;
-
-    if (!is_pedometer_connected())
-        return false;
-
-    print_binary(ijcmd->data, 18);
-
-    sent = send(g_fd[fdtype_pedometer], ijcmd->data, ijcmd->msg.length, 0);
-    if (sent == -1)
-    {
-        perror("pedometer send error");
-    }
-
-    LOGDEBUG("sent to pedometer daemon: %d byte", sent);
-
-    return true;
-}
-#endif
-
 bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
     LOGDEBUG("msgproc_sensor");

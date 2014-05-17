@@ -30,28 +30,14 @@
 #include "emuld_common.h"
 #include "emuld.h"
 #include "synbuf.h"
-#ifdef MOBILE
 #include "pmapi.h"
-#endif
-
-#ifdef WEARABLE
-#include "deviced/dd-display.h"
-#endif
 
 #define PMAPI_RETRY_COUNT       3
 #define MAX_CONNECT_TRY_COUNT   (60 * 3)
 #define SRV_IP "10.0.2.2"
 
 /* global definition */
-#ifdef MOBILE
 unsigned short vmodem_port = VMODEM_PORT;
-#endif
-
-#ifdef WEARABLE
-unsigned short pedometer_port = PEDOMETER_PORT;
-static int g_pedometer_connect_status;/* connection status between emuld and pedometer daemon  */
-static pthread_mutex_t mutex_pedometerconnect = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
 /* global server port number */
 int g_svr_port;
@@ -91,7 +77,6 @@ void systemcall(const char* param)
         LOGERR("system call failure(command = %s)", param);
 }
 
-#ifdef MOBILE
 void set_lock_state(int state) {
     int i = 0;
     int ret = 0;
@@ -114,7 +99,6 @@ void set_lock_state(int state) {
         LOGERR("Emulator Daemon: Failed to call pm_lock/unlock_state().");
     }
 }
-#endif
 
 /*---------------------------------------------------------------
 function : init_data0
@@ -147,108 +131,6 @@ static void set_vm_connect_status(const int v)
 
     g_vm_connect_status = v;
 }
-
-#ifdef WEARABLE
-
-bool is_pedometer_connected(void)
-{
-    _auto_mutex _(&mutex_pedometerconnect);
-
-    if (g_pedometer_connect_status != 1)
-        return false;
-
-    return true;
-}
-
-void set_pedometer_connect_status(const int v)
-{
-    _auto_mutex _(&mutex_pedometerconnect);
-
-    g_pedometer_connect_status = v;
-}
-
-void* init_pedometer_connect(void* data)
-{
-    struct sockaddr_in pedometer_addr;
-    int ret = -1;
-
-    set_pedometer_connect_status(0);
-
-    LOGINFO("init_pedometer_connect start\n");
-
-    pthread_detach(pthread_self());
-    /* Open TCP Socket */
-    if ((g_fd[fdtype_pedometer] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        LOGERR("Server Start Fails. : Can't open stream socket \n");
-        exit(0);
-    }
-
-    /* Address Setting */
-    memset( &pedometer_addr , 0 , sizeof(pedometer_addr)) ;
-
-    pedometer_addr.sin_family = AF_INET;
-    pedometer_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    pedometer_addr.sin_port = htons(pedometer_port);
-
-    while (ret < 0 && !exit_flag)
-    {
-        ret = connect(g_fd[fdtype_pedometer], (struct sockaddr *)&pedometer_addr, sizeof(pedometer_addr));
-
-        LOGDEBUG("pedometer_sockfd: %d, connect ret: %d\n", g_fd[fdtype_pedometer], ret);
-
-        if(ret < 0) {
-            LOGDEBUG("connection failed to pedometer! try \n");
-            sleep(1);
-        }
-    }
-
-    epoll_ctl_add(g_fd[fdtype_pedometer]);
-
-    set_pedometer_connect_status(1);
-
-    pthread_exit((void *) 0);
-}
-
-void recv_from_pedometer(int fd)
-{
-    printf("recv_from_pedometer\n");
-
-    ijcommand ijcmd;
-    if (!read_ijcmd(fd, &ijcmd))
-    {
-        LOGERR("fail to read ijcmd\n");
-
-        set_pedometer_connect_status(0);
-
-        close(fd);
-
-        if (pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
-        {
-            LOGERR("pthread create fail!");
-        }
-        return;
-    }
-
-    LOGDEBUG("pedometer data length: %d", ijcmd.msg.length);
-    const int tmplen = HEADER_SIZE + ijcmd.msg.length;
-    char* tmp = (char*) malloc(tmplen);
-
-    if (tmp)
-    {
-        memcpy(tmp, &ijcmd.msg, HEADER_SIZE);
-        if (ijcmd.msg.length > 0)
-            memcpy(tmp + HEADER_SIZE, ijcmd.data, ijcmd.msg.length);
-
-        if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_PEDOMETER, (const char*) tmp, tmplen)) {
-            LOGERR("msg_send_to_evdi: failed\n");
-        }
-
-        free(tmp);
-    }
-}
-
-#endif
 
 bool epoll_ctl_add(const int fd)
 {
@@ -386,7 +268,6 @@ fail:
 }
 /*------------------------------- end of function init_server0 */
 
-#ifdef MOBILE
 static void* init_vm_connect(void* data)
 {
     struct sockaddr_in vm_addr;
@@ -429,7 +310,6 @@ static void* init_vm_connect(void* data)
 
     pthread_exit((void *) 0);
 }
-#endif
 
 static bool epoll_init(void)
 {
@@ -584,12 +464,12 @@ bool read_id(const int fd, ijcommand* ijcmd)
     }
 
     LOGDEBUG("identifier: %s", readbuf);
-#ifdef MOBILE
+
     memset(ijcmd->cmd, '\0', sizeof(ijcmd->cmd));
     int parselen = parse_val(readbuf, 0x0a, ijcmd->cmd);
 
     LOGDEBUG("parse_len: %d, buf = %s, fd=%d", parselen, ijcmd->cmd, fd);
-#endif
+
     if (readbuf)
     {
         free(readbuf);
@@ -599,7 +479,6 @@ bool read_id(const int fd, ijcommand* ijcmd)
     return true;
 }
 
-#ifdef MOBILE
 void recv_from_vmodem(int fd)
 {
     LOGDEBUG("recv_from_vmodem");
@@ -648,7 +527,6 @@ void recv_from_vmodem(int fd)
         }
     }
 }
-#endif
 
 void recv_from_ij(int fd)
 {
@@ -721,7 +599,6 @@ static bool accept_proc(const int server_fd)
     return true;
 }
 
-#ifdef MOBILE
 static void msgproc_suspend(int fd, ijcommand* ijcmd, bool evdi)
 {
     if (ijcmd->msg.action == SUSPEND_LOCK) {
@@ -760,7 +637,6 @@ static void send_default_suspend_req(void)
     if (packet)
         free(packet);
 }
-#endif
 
 static synbuf g_synbuf;
 
@@ -772,7 +648,6 @@ void process_evdi_command(ijcommand* ijcmd)
     {
         msgproc_sensor(fd, ijcmd, true);
     }
-#ifdef MOBILE
     else if (strncmp(ijcmd->cmd, "telephony", 9) == 0)
     {
         msgproc_telephony(fd, ijcmd, true);
@@ -781,13 +656,6 @@ void process_evdi_command(ijcommand* ijcmd)
     {
         msgproc_suspend(fd, ijcmd, true);
     }
-#endif
-#ifdef WEARABLE
-    else if (strncmp(ijcmd->cmd, "pedometer", 9) == 0)
-    {
-        msgproc_pedometer(fd, ijcmd, true);
-    }
-#endif
     else if (strncmp(ijcmd->cmd, "location", 8) == 0)
     {
         msgproc_location(fd, ijcmd, true);
@@ -854,14 +722,14 @@ static void recv_from_evdi(evdi_fd fd)
     readed = g_synbuf.read((char*)&ijcmd.msg, HEADER_SIZE);
     if (readed < HEADER_SIZE)
         return;
-#ifdef MOBILE
+
     int act = ijcmd.msg.action;
     int grp = ijcmd.msg.group;
     int len = ijcmd.msg.length;
 
 
     LOGDEBUG("HEADER : action = %d, group = %d, length = %d", act, grp, len);
-#endif
+
     if (ijcmd.msg.length > 0)
     {
         ijcmd.data = (char*) malloc(ijcmd.msg.length);
@@ -904,22 +772,14 @@ static bool server_process(void)
         {
             accept_proc(fd_tmp);
         }
-#ifdef WEARABLE
-        else if (fd_tmp == g_fd[fdtype_pedometer])
-        {
-            recv_from_pedometer(fd_tmp);
-        }
-#endif
         else if (fd_tmp == g_fd[fdtype_device])
         {
             recv_from_evdi(fd_tmp);
         }
-#ifdef MOBILE
         else if(fd_tmp == g_fd[fdtype_vmodem])
         {
             recv_from_vmodem(fd_tmp);
         }
-#endif
         else
         {
             recv_from_ij(fd_tmp);
@@ -929,40 +789,15 @@ static bool server_process(void)
     return false;
 }
 
-#ifdef WEARABLE
-void set_display_lock_state() {
-    int i = 0;
-    int ret = 0;
-    // Now we blocking to enter "SLEEP".
-    while(i < PMAPI_RETRY_COUNT ) {
-        ret = display_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
-        LOGINFO("display_lock_state() return: %d", ret);
-        if(ret == 0)
-        {
-            break;
-        }
-        ++i;
-        sleep(10);
-    }
-    if (i == PMAPI_RETRY_COUNT) {
-        LOGERR("Emulator Daemon: Failed to call display_lock_state().\n");
-    }
-}
-#endif
-
 int main( int argc , char *argv[])
 {
     int state;
-
-#ifdef WEARABLE
-    int pedometer_state;
-#endif
 
     LOGINFO("emuld start");
     /* entry , argument check and process */
     if(argc < 3){
         g_svr_port = DEFAULT_PORT;
-    }else {
+    } else {
         if(strcmp("-port", argv[1]) ==  0 ) {
             g_svr_port = atoi(argv[2]);
             if(g_svr_port < 1024) {
@@ -995,7 +830,6 @@ int main( int argc , char *argv[])
 
     set_vm_connect_status(0);
 
-#ifdef MOBILE
     if(pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
     {
         LOGERR("pthread create fail!");
@@ -1004,18 +838,7 @@ int main( int argc , char *argv[])
     }
 
     send_default_suspend_req();
-#endif
 
-#ifdef WEARABLE
-    if(pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
-    {
-        LOGERR("pthread create fail!");
-        close(g_epoll_fd);
-        exit(0);
-    }
-
-	set_display_lock_state();
-#endif
     bool is_exit = false;
 
     while(!is_exit)
@@ -1037,21 +860,7 @@ int main( int argc , char *argv[])
     {
         LOGERR("mutex_vmconnect is failed to destroy.");
     }
-#ifdef WEARABLE
-    if (!is_pedometer_connected())
-    {
-        int status;
-        pthread_join(tid[3], (void **)&status);
-        LOGINFO("pedometer thread end %d\n", status);
-	}
 
-    pedometer_state = pthread_mutex_destroy(&mutex_pedometerconnect);
-    if (pedometer_state != 0)
-    {
-        LOGERR("mutex_pedometerconnect is failed to destroy.");
-    }
-
-#endif
     stop_listen();
 
     if (g_fd[fdtype_server])

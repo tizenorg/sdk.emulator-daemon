@@ -1,0 +1,12 @@
+[Unit]
+Description=Daemon for emulator
+After=system-server.service
+Requires=system-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/emuld
+
+[Install]
+WantedBy=emulator.target
+

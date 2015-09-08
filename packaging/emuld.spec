@@ -1,44 +1,54 @@
-#git:/slp/pkgs/e/emulator-daemon
 Name: emuld
-Version: 0.2.40
-Release: 1
-Summary: emuld is used for communication emulator between and ide.
-License: Apache
+Version: 0.9.1
+Release: 0
+Summary: Emulator daemon
+License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
-Source1001: packaging/emuld.manifest
+Group: SDK/Other
+ExclusiveArch: %{ix86}
+
 BuildRequires: cmake
-BuildRequires:  pkgconfig(vconf)
+BuildRequires: pkgconfig(vconf)
+BuildRequires: pkgconfig(deviced)
+BuildRequires: pkgconfig(dlog)
+BuildRequires: pkgconfig(edbus)
+BuildRequires: pkgconfig(ecore)
+BuildRequires: pkgconfig(dbus-glib-1)
 
 %description
+A emulator daemon is used for communication between guest and host
 
 %prep
 %setup -q
 
-%build
-export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"
+%if "%{?tizen_profile_name}" == "mobile"
+export CFLAGS+=" -DMOBILE"
+%elseif "%{?tizen_profile_name}" == "wearable"
+export CFLAGS+=" -DWEARABLE"
+%else
+%if "%{?tizen_profile_name}" == "tv"
+export CFLAGS+=" -DTV"
+%endif
+%endif
 
-LDFLAGS="$LDFLAGS" cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
+cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
+
+%build
 
 make
 
 %install
-#for systemd
 rm -rf %{buildroot}
+
 if [ ! -d %{buildroot}/usr/lib/systemd/system/emulator.target.wants ]; then
     mkdir -p %{buildroot}/usr/lib/systemd/system/emulator.target.wants
 fi
+
 cp emuld.service %{buildroot}/usr/lib/systemd/system/.
 ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/emulator.target.wants/emuld.service
 
-#for legacy init
-if [ ! -d %{buildroot}/etc/init.d ]; then
-    mkdir -p %{buildroot}/etc/init.d
-fi
-cp emuld %{buildroot}/etc/init.d/.
-if [ ! -d %{buildroot}/etc/rc.d/rc3.d ]; then
-    mkdir -p %{buildroot}/etc/rc.d/rc3.d
-fi
-ln -s /etc/init.d/emuld %{buildroot}/etc/rc.d/rc3.d/S04emuld
+mkdir -p %{buildroot}/usr/share/license
+cp LICENSE %{buildroot}/usr/share/license/%{name}
 
 %make_install
 
@@ -48,21 +58,17 @@ rm -rf CMakeCache.txt
 rm -rf CMakeFiles
 rm -rf cmake_install.cmake
 rm -rf Makefile
-rm -rf install_manifes.txt
+rm -rf install_manifest.txt
 
 %post
-chmod 777 /usr/bin/emuld
-mkdir -p /opt/nfc
-touch /opt/nfc/sdkMsg
-
-%postun
+chmod 770 %{_prefix}/bin/emuld
 
 %files
 %defattr(-,root,root,-)
+%manifest emuld.manifest
 %{_prefix}/bin/emuld
+/usr/share/license/%{name}
 /usr/lib/systemd/system/emuld.service
 /usr/lib/systemd/system/emulator.target.wants/emuld.service
-/etc/init.d/emuld
-/etc/rc.d/rc3.d/S04emuld
 
 %changelog

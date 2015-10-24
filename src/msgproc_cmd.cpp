@@ -28,11 +28,41 @@
  *
  */
 
-#ifndef __WEARABLE_H__
-#define __WEARABLE_H__
+#include "emuld.h"
 
-#define IJTYPE_SENSOR       "sensor"
+char command[512];
+static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
 
-bool msgproc_sensor(ijcommand* ijcmd);
+void* exec_cmd_thread(void *args)
+{
+    char *command = (char*)args;
 
-#endif
+    systemcall(command);
+    LOGDEBUG("executed cmd: %s", command);
+    free(command);
+
+    pthread_exit(NULL);
+}
+
+bool msgproc_cmd(ijcommand* ijcmd)
+{
+    _auto_mutex _(&mutex_cmd);
+    pthread_t cmd_thread_id;
+    char *cmd = (char*) malloc(ijcmd->msg.length + 1);
+
+    if (!cmd) {
+        LOGERR("malloc failed.");
+        return true;
+    }
+
+    memset(cmd, 0x00, ijcmd->msg.length + 1);
+    strncpy(cmd, ijcmd->data, ijcmd->msg.length);
+    LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
+
+    if (pthread_create(&cmd_thread_id, NULL, exec_cmd_thread, (void*)cmd) != 0) {
+        LOGERR("cmd pthread create fail!");
+    }
+    return true;
+}
+
+

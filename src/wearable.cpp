@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * DaiYoung Kim <daiyoung777.kim@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
@@ -38,41 +39,16 @@ enum sensor_type{
     USB = 10,
 };
 
-#define DBUS_SEND_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/SysNoti org.tizen.system.deviced.SysNoti."
-static void dbus_send(const char* device, const char* option)
-{
-    const char* dbus_send_cmd = DBUS_SEND_CMD;
-    char* cmd;
-
-    if (device == NULL || option == NULL)
-        return;
-
-    cmd = (char*)malloc(512);
-    if (cmd == NULL)
-        return;
-
-    memset(cmd, 0, 512);
-
-    sprintf(cmd, "%s%s string:\"%s\" %s", dbus_send_cmd, device, device, option);
-
-    systemcall(cmd);
-    LOGINFO("dbus_send: %s", cmd);
-
-    free(cmd);
-}
-
 #define POWER_SUPPLY    "power_supply"
 #define FULL            "Full"
 #define CHARGING        "Charging"
 #define DISCHARGING     "Discharging"
-
 static void dbus_send_power_supply(int capacity, int charger)
 {
     const char* power_device = POWER_SUPPLY;
     char state [16];
-    char option [128];
-    memset(state, 0, 16);
-    memset(option, 0, 128);
+    char option [DBUS_MSG_BUF_SIZE];
+    memset(state, 0, sizeof(state));
 
     if (capacity == 100 && charger == 1) {
         memcpy(state, FULL, 4);
@@ -82,33 +58,30 @@ static void dbus_send_power_supply(int capacity, int charger)
         memcpy(state, DISCHARGING, 11);
     }
 
-    sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
+    snprintf(option, sizeof(option), "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
             capacity, state, (charger + 1));
 
-    dbus_send(power_device, option);
+    dbus_send(power_device, DBUS_SEND_SYSNOTI, option);
 }
 
-#define DEVICE_CHANGED  "device_changed"
 static void dbus_send_usb(int on)
 {
     const char* usb_device = DEVICE_CHANGED;
-    char option [128];
-    memset(option, 0, 128);
+    char option [DBUS_MSG_BUF_SIZE];
 
-    sprintf(option, "int32:2 string:\"usb\" string:\"%d\"", on);
+    snprintf(option, sizeof(option), "int32:2 string:\"usb\" string:\"%d\"", on);
 
-    dbus_send(usb_device, option);
+    dbus_send(usb_device, DBUS_SEND_EXTCON, option);
 }
 
 static void dbus_send_earjack(int on)
 {
     const char* earjack_device = DEVICE_CHANGED;
-    char option [128];
-    memset(option, 0, 128);
+    char option [DBUS_MSG_BUF_SIZE];
 
-    sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", on);
+    snprintf(option, sizeof(option), "int32:2 string:\"earjack\" string:\"%d\"", on);
 
-    dbus_send(earjack_device, option);
+    dbus_send(earjack_device, DBUS_SEND_EXTCON, option);
 }
 
 static int read_from_file(const char* file_name)
@@ -267,7 +240,7 @@ static void setting_sensor(char *buffer)
     }
 }
 
-void msgproc_sensor(ijcommand* ijcmd)
+bool msgproc_sensor(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sensor");
 
@@ -277,24 +250,17 @@ void msgproc_sensor(ijcommand* ijcmd)
             setting_sensor(ijcmd->data);
         }
     }
+    return true;
 }
 
-bool extra_evdi_command(ijcommand* ijcmd) {
+void add_vconf_map_profile(void)
+{
+}
 
-    if (strncmp(ijcmd->cmd, IJTYPE_SENSOR, 6) == 0)
+void add_msg_proc_ext(void)
+{
+    if (!msgproc_add(DEFAULT_MSGPROC, IJTYPE_SENSOR, &msgproc_sensor, MSGPROC_PRIO_MIDDLE))
     {
-        msgproc_sensor(ijcmd);
-        return true;
+        LOGWARN("Msgproc add failed. plugin = %s, cmd = %s", DEFAULT_MSGPROC, IJTYPE_SENSOR);
     }
-    else if (strcmp(ijcmd->cmd, IJTYPE_LOCATION) == 0)
-    {
-        msgproc_location(ijcmd);
-        return true;
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_SDCARD) == 0)
-    {
-        msgproc_sdcard(ijcmd);
-        return true;
-    }
-    return false;
 }

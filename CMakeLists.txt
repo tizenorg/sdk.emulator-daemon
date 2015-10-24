@@ -1,15 +1,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(emuld CXX)
 
-# to install pkgconfig setup file.
-SET(EXEC_PREFIX "\${prefix}")
-#SET(LIBDIR "\${prefix}/lib")
-SET(INCLUDEDIR "\${prefix}/include")
-SET(VERSION 1.1)
+SET(VERSION 0.10.3)
 
-set(PROJECT_MAJOR_VERSION "1")
-set(PROJECT_MINOR_VERSION "1")
-set(PROJECT_RELEASE_VERSION "0")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 IF("$ENV{CFLAGS}" MATCHES "-DMOBILE")
@@ -24,12 +17,50 @@ IF("$ENV{CFLAGS}" MATCHES "-DTV")
     OPTION(USE_D_TV "Use TV Def" ON)
 ENDIF()
 
+IF("$ENV{CFLAGS}" MATCHES "-DUNKNOWN_PROFILE")
+    ADD_DEFINITIONS("-DUNKNOWN_PROFILE")
+ENDIF()
+
 SET(SRCS
     src/emuld.cpp
-    src/evdi.cpp
-    src/client.cpp
+    src/net.cpp
     src/common.cpp
 )
+
+IF(MSGPROC_HDS STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_HDS")
+    SET(SRCS ${SRCS} src/msgproc_hds.cpp)
+ENDIF()
+
+IF(MSGPROC_CMD STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_CMD")
+    SET(SRCS ${SRCS} src/msgproc_cmd.cpp)
+ENDIF()
+
+IF(MSGPROC_PACKAGE STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_PACKAGE")
+    SET(SRCS ${SRCS} src/msgproc_package.cpp)
+ENDIF()
+
+IF(MSGPROC_SYSTEM STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_SYSTEM")
+    SET(SRCS ${SRCS} src/msgproc_system.cpp)
+ENDIF()
+
+IF(MSGPROC_VCONF STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_VCONF")
+    SET(SRCS ${SRCS} src/msgproc_vconf.cpp)
+ENDIF()
+
+IF(MSGPROC_SUSPEND STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_SUSPEND")
+    SET(SRCS ${SRCS} src/msgproc_suspend.cpp)
+ENDIF()
+
+IF(MSGPROC_LOCATION STREQUAL on)
+    ADD_DEFINITIONS("-DENABLE_LOCATION")
+    SET(SRCS ${SRCS} src/msgproc_location.cpp)
+ENDIF()
 
 IF(USE_D_MOBILE)
     SET(SRCS ${SRCS}
@@ -57,15 +88,19 @@ SET(PKG_MODULE
     vconf
     deviced
     dlog
+    glib-2.0
     ecore
     edbus
+    capi-network-connection
 )
 
 pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})
 
 SET(LIBS
     ${LIBS}
+    libemuld
     pthread
+    dl
 )
 
 #IF(USE_D_TV)
@@ -81,10 +116,14 @@ ADD_DEFINITIONS(-Wall -O3 -omit-frame-pointer)
 FOREACH(flag ${PKGS_CFLAGS})
     SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
 ENDFOREACH(flag)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CFLAGS}")
+
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CFLAGS} -Wall -fPIE")
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed -pie")
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${SRCS})
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${PKGS_LDFLAGS} ${LIBS})
 
 INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)
+
+ADD_SUBDIRECTORY(src/libemuld)

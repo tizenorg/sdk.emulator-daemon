@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
@@ -30,10 +31,15 @@
 #ifndef __MOBILE_H__
 #define __MOBILE_H__
 
-#define TID_SENSOR          5
-
 #define IJTYPE_SENSOR       "sensor"
 
-void msgproc_sensor(ijcommand* ijcmd);
+#define VCONF_DBTAP      "memory/private/sensor/800004"
+#define VCONF_SHAKE      "memory/private/sensor/800002"
+#define VCONF_SNAP       "memory/private/sensor/800001"
+#define VCONF_MOVETOCALL "memory/private/sensor/800020"
+
+#define VCONF_RSSI       "memory/telephony/rssi"
+
+bool msgproc_sensor(ijcommand* ijcmd);
 
 #endif

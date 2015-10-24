@@ -1,7 +1,7 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
  * Jinhyung Choi <jinhyung2.choi@samsnung.com>
@@ -33,6 +33,15 @@
 #define IJTYPE_GESTURE      "gesture"
 #define IJTYPE_VOICE        "voice"
 #define IJTYPE_EI           "ei"
+
+#define VCONF_HDMI1 "memory/sysman/hdmi1"
+#define VCONF_HDMI2 "memory/sysman/hdmi2"
+#define VCONF_HDMI3 "memory/sysman/hdmi3"
+#define VCONF_HDMI4 "memory/sysman/hdmi4"
+#define VCONF_AV1   "memory/sysman/av1"
+#define VCONF_AV2   "memory/sysman/av1"
+#define VCONF_COMP1 "memory/sysman/comp1"
+#define VCONF_COMP2 "memory/sysman/comp1"
 
 bool msgproc_gesture(ijcommand* ijcmd);
 bool msgproc_voice(ijcommand* ijcmd);

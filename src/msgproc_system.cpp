@@ -28,11 +28,51 @@
  *
  */
 
-#ifndef __WEARABLE_H__
-#define __WEARABLE_H__
+#include <sys/time.h>
+#include <sys/reboot.h>
+#include <unistd.h>
+#include "emuld.h"
 
-#define IJTYPE_SENSOR       "sensor"
+#define POWEROFF_DURATION   2
 
-bool msgproc_sensor(ijcommand* ijcmd);
+static struct timeval tv_start_poweroff;
 
-#endif
+void powerdown_by_force(void)
+{
+    struct timeval now;
+    int poweroff_duration = POWEROFF_DURATION;
+
+    gettimeofday(&now, NULL);
+    /* Waiting until power off duration and displaying animation */
+    while (now.tv_sec - tv_start_poweroff.tv_sec < poweroff_duration) {
+        LOGINFO("power down wait");
+        usleep(100000);
+        gettimeofday(&now, NULL);
+    }
+
+    LOGINFO("Power off by force");
+    LOGINFO("sync");
+
+    sync();
+
+    LOGINFO("poweroff");
+
+    reboot(RB_POWER_OFF);
+}
+
+bool msgproc_system(ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_system");
+
+    LOGINFO("/etc/rc.d/rc.shutdown, sync, reboot(RB_POWER_OFF)");
+
+    sync();
+
+    systemcall("/etc/rc.d/rc.shutdown &");
+
+    gettimeofday(&tv_start_poweroff, NULL);
+
+    powerdown_by_force();
+
+    return true;
+}

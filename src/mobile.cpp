@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * DaiYoung Kim <daiyoung777.kim@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
@@ -28,7 +29,6 @@
  */
 
 #include <stdio.h>
-#include <vconf/vconf.h>
 #include <vconf/vconf-keys.h>
 
 #include "emuld.h"
@@ -75,48 +75,16 @@ enum motion_move{
     SENSOR_MOTION_MOVE_MOVETOCALL = 1
 };
 
-static void system_cmd(const char* msg)
-{
-    int ret = system(msg);
-    if (ret == -1) {
-        LOGERR("system command is failed: %s", msg);
-    }
-}
-
-#define DBUS_SEND_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/SysNoti org.tizen.system.deviced.SysNoti."
-static void dbus_send(const char* device, const char* option)
-{
-    const char* dbus_send_cmd = DBUS_SEND_CMD;
-    char* cmd;
-
-    if (device == NULL || option == NULL)
-        return;
-
-    cmd = (char*)calloc(MAX_CMD_LEN, sizeof(char));
-    if (cmd == NULL)
-        return;
-
-    sprintf(cmd, "%s%s string:\"%s\" %s", dbus_send_cmd, device, device, option);
-
-    system_cmd(cmd);
-    LOGINFO("dbus_send: %s", cmd);
-
-    free(cmd);
-}
-
-#define POWER_SUPPLY            "power_supply"
-#define FULL                    "Full"
-#define CHARGING                "Charging"
-#define DISCHARGING             "Discharging"
-#define MAX_POWER_STATE_LEN     16
-#define MAX_OPTION_LEN    128
+#define POWER_SUPPLY    "power_supply"
+#define FULL            "Full"
+#define CHARGING        "Charging"
+#define DISCHARGING     "Discharging"
 static void dbus_send_power_supply(int capacity, int charger)
 {
     const char* power_device = POWER_SUPPLY;
-    char state [MAX_POWER_STATE_LEN];
-    char option [MAX_OPTION_LEN];
+    char state [16];
+    char option [DBUS_MSG_BUF_SIZE];
     memset(state, 0, sizeof(state));
-    memset(option, 0, sizeof(option));
 
     if (capacity == 100 && charger == 1) {
         memcpy(state, FULL, 4);
@@ -126,34 +94,30 @@ static void dbus_send_power_supply(int capacity, int charger)
         memcpy(state, DISCHARGING, 11);
     }
 
-    sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
+    snprintf(option, sizeof(option), "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
             capacity, state, (charger + 1));
 
-    dbus_send(power_device, option);
+    dbus_send(power_device, DBUS_SEND_SYSNOTI, option);
 }
-
-#define DEVICE_CHANGED      "device_changed"
 
 static void dbus_send_usb(int on)
 {
     const char* usb_device = DEVICE_CHANGED;
-    char option [MAX_OPTION_LEN];
-    memset(option, 0, sizeof(option));
+    char option [DBUS_MSG_BUF_SIZE];
 
-    sprintf(option, "int32:2 string:\"usb\" string:\"%d\"", on);
+    snprintf(option, sizeof(option), "int32:2 string:\"usb\" string:\"%d\"", on);
 
-    dbus_send(usb_device, option);
+    dbus_send(usb_device, DBUS_SEND_EXTCON, option);
 }
 
 static void dbus_send_earjack(int on)
 {
     const char* earjack_device = DEVICE_CHANGED;
-    char option [MAX_OPTION_LEN];
-    memset(option, 0, sizeof(option));
+    char option [DBUS_MSG_BUF_SIZE];
 
-    sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", on);
+    snprintf(option, sizeof(option), "int32:2 string:\"earjack\" string:\"%d\"", on);
 
-    dbus_send(earjack_device, option);
+    dbus_send(earjack_device, DBUS_SEND_EXTCON, option);
 }
 
 int parse_motion_data(int len, char *buffer)
@@ -445,31 +409,10 @@ void setting_sensor(char *buffer)
     }
 }
 
-
-static int inline get_vconf_status(char* msg, const char* key, int buf_len)
-{
-    int status;
-    int ret = vconf_get_int(key, &status);
-    if (ret != 0) {
-        LOGERR("cannot get vconf key - %s", key);
-        return -1;
-    }
-
-    sprintf(msg, "%d", status);
-    return strlen(msg);
-}
-
-char* __tmpalloc(const int size)
-{
-    char* message = (char*)malloc(sizeof(char) * size);
-    memset(message, 0, sizeof(char) * size);
-    return message;
-}
-
 char* get_rssi_level(void* p)
 {
-    char* message = __tmpalloc(5);
-    int length = get_vconf_status(message, "memory/telephony/rssi", 5);
+    char* message = NULL;
+    int length = get_vconf_status(&message, VCONF_TYPE_INT, "memory/telephony/rssi");
     if (length < 0){
         return 0;
     }
@@ -548,7 +491,7 @@ static void* getting_sensor(void* data)
     pthread_exit((void *) 0);
 }
 
-void msgproc_sensor(ijcommand* ijcmd)
+bool msgproc_sensor(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sensor");
 
@@ -556,7 +499,7 @@ void msgproc_sensor(ijcommand* ijcmd)
     {
         setting_device_param* param = new setting_device_param();
         if (!param)
-            return;
+            return true;
 
         memset(param, 0, sizeof(*param));
 
@@ -566,7 +509,7 @@ void msgproc_sensor(ijcommand* ijcmd)
         if (pthread_create(&tid[TID_SENSOR], NULL, getting_sensor, (void*)param) != 0)
         {
             LOGERR("sensor pthread create fail!");
-            return;
+            return true;
         }
     }
     else
@@ -575,24 +518,25 @@ void msgproc_sensor(ijcommand* ijcmd)
             setting_sensor(ijcmd->data);
         }
     }
+    return true;
 }
 
-bool extra_evdi_command(ijcommand* ijcmd) {
+void add_vconf_map_profile(void)
+{
+    /* sensor */
+    add_vconf_map(SENSOR, VCONF_DBTAP);
+    add_vconf_map(SENSOR, VCONF_SHAKE);
+    add_vconf_map(SENSOR, VCONF_SNAP);
+    add_vconf_map(SENSOR, VCONF_MOVETOCALL);
 
-    if (strncmp(ijcmd->cmd, IJTYPE_SENSOR, 6) == 0)
+    /* telephony */
+    add_vconf_map(TELEPHONY, VCONF_RSSI);
+}
+
+void add_msg_proc_ext(void)
+{
+    if (!msgproc_add(DEFAULT_MSGPROC, IJTYPE_SENSOR, &msgproc_sensor, MSGPROC_PRIO_MIDDLE))
     {
-        msgproc_sensor(ijcmd);
-        return true;
+        LOGWARN("Msgproc add failed. plugin = %s, cmd = %s", DEFAULT_MSGPROC, IJTYPE_SENSOR);
     }
-    else if (strcmp(ijcmd->cmd, IJTYPE_LOCATION) == 0)
-    {
-        msgproc_location(ijcmd);
-        return true;
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_SDCARD) == 0)
-    {
-        msgproc_sdcard(ijcmd);
-        return true;
-    }
-    return false;
 }
